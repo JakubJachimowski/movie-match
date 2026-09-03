@@ -32,9 +32,9 @@ const MAX_FETCH_ATTEMPTS = 5;
 // Bazowa krzywa pionowego ruchu podczas przeciągania (mieszana z realnym ruchem palca).
 const DRAG_ANGLE_DEG = 22;
 const DRAG_SLOPE = Math.tan((DRAG_ANGLE_DEG * Math.PI) / 180);
-const FALL_QUAD_COEFF = 0.0016;
+const FALL_QUAD_COEFF = 0.0020;
 // 0 = pion w pełni "po krzywej", 1 = w pełni podąża za palcem.
-const DRAG_FREEDOM = 0.4;
+const DRAG_FREEDOM = 0.5;
 
 // Punkt zaczepienia rotacji — poniżej przycisku Cofnij, ok. 1/3 wysokości ekranu dalej.
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -427,8 +427,8 @@ export default function Swipe() {
   const countryLabel = COUNTRY_OPTIONS.find((c) => c.code === draftSettings.country)?.label ?? 'Dowolny kraj';
 
   const activeCountryLabel = COUNTRY_OPTIONS.find((c) => c.code === settings.country)?.label;
-  const filtersSummary = `${settings.scoreMin}–${settings.scoreMax} • ${settings.yearMin}–${settings.yearMax}${
-    settings.country ? ` • ${activeCountryLabel}` : ''
+  const filtersSummary = `${settings.scoreMin} – ${settings.scoreMax}  •  ${settings.yearMin} – ${settings.yearMax}${
+    settings.country ? `  •  ${activeCountryLabel}` : ''
   }`;
 
   const runtime = currentMovie ? runtimeCache[currentMovie.id] : undefined;
@@ -441,7 +441,7 @@ export default function Swipe() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground3.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   headerButtonText: { color: '#E8E4D9', fontSize: 13, fontWeight: 'bold' },
 
   headerCenter: { flex: 1, marginHorizontal: 8, alignItems: 'center' },
-  genreLine: { color: '#E8E4D9', fontSize: 15, fontWeight: 'bold' },
+  genreLine: { color: '#E8E4D9', fontSize: 20, fontWeight: 'bold' },
   filtersLine: { color: '#B5AFA0', fontSize: 15, marginTop: 2 },
 
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -677,11 +677,11 @@ const styles = StyleSheet.create({
   descriptionSpacer: { height: 20 },
 
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
-  descriptionTitle: { color: '#E8E4D9', fontSize: 22, fontWeight: 'bold', flex: 1, marginRight: 8 },
+  descriptionTitle: { color: '#E8E4D9', fontSize: 23, fontWeight: 'bold', flex: 1, marginRight: 8 },
   providersText: { color: '#B5AFA0', fontSize: 12, textAlign: 'right', maxWidth: '35%' },
 
   descriptionSubtitle: { color: '#B5AFA0', fontSize: 12, marginBottom: 8 },
-  descriptionText: { color: '#E8E4D9', fontSize: 16, lineHeight: 21 },
+  descriptionText: { color: '#E8E4D9', fontSize: 17, lineHeight: 21 },
 
   bottomRow: {
     flexDirection: 'row',
