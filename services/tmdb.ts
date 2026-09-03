@@ -43,7 +43,32 @@ export async function fetchMoviesByGenre(
       description: m.overview || 'Brak opisu.',
       image: `${IMAGE_BASE}${m.poster_path}`,
       year: m.release_date ? m.release_date.slice(0, 4) : '—',
+      country: (m.origin_country && m.origin_country[0]) || m.original_language?.toUpperCase() || '—',
+      voteAverage: typeof m.vote_average === 'number' ? m.vote_average : 0,
     }));
 
   return { movies, totalPages: data.total_pages || 1 };
+}
+
+// Czas trwania nie jest dostępny w liście filmów — pobierany osobno, na żądanie.
+export async function fetchMovieRuntime(movieId: string): Promise<number | null> {
+  const params = new URLSearchParams();
+  params.set('api_key', API_KEY || '');
+  params.set('language', 'pl-PL');
+
+  const response = await fetch(`${BASE_URL}/movie/${movieId}?${params.toString()}`);
+  const data = await response.json();
+  return typeof data.runtime === 'number' && data.runtime > 0 ? data.runtime : null;
+}
+
+// Zwraca skróconą listę serwisów VOD (subskrypcja) dostępnych w Polsce dla danego filmu.
+export async function fetchWatchProviders(movieId: string): Promise<string[]> {
+  const params = new URLSearchParams();
+  params.set('api_key', API_KEY || '');
+
+  const response = await fetch(`${BASE_URL}/movie/${movieId}/watch/providers?${params.toString()}`);
+  const data = await response.json();
+
+  const plProviders = data.results?.PL?.flatrate || [];
+  return plProviders.map((p: any) => p.provider_name).slice(0, 3);
 }

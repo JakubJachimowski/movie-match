@@ -13,6 +13,11 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={require('../../assets/images/moviematchbackground.png')}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
       <View style={styles.heroWrapper}>
         <Image
           source={require('../../assets/photos/Wiktoria_test_5.jpg')}

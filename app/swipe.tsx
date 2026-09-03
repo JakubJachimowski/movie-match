@@ -1,10 +1,10 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SwipeableStack, SwipeableStackRef } from 'react-native-swipeable-stack';
-import { fetchMoviesByGenre } from '../services/tmdb';
+import { fetchMovieRuntime, fetchMoviesByGenre, fetchWatchProviders } from '../services/tmdb';
 import { GenreSettings, Movie, useMovieStore } from '../store/useMovieStore';
 
 const SCORE_RANGE = Array.from({ length: 11 }, (_, i) => i);
@@ -28,6 +28,32 @@ const EDGE_SPACING = 20;
 const TOP_GAP = 14;
 const MIN_BUFFER = 5;
 const MAX_FETCH_ATTEMPTS = 5;
+
+// Bazowa krzywa pionowego ruchu podczas przeciągania (mieszana z realnym ruchem palca).
+const DRAG_ANGLE_DEG = 22;
+const DRAG_SLOPE = Math.tan((DRAG_ANGLE_DEG * Math.PI) / 180);
+const FALL_QUAD_COEFF = 0.0016;
+// 0 = pion w pełni "po krzywej", 1 = w pełni podąża za palcem.
+const DRAG_FREEDOM = 0.4;
+
+// Punkt zaczepienia rotacji — poniżej przycisku Cofnij, ok. 1/3 wysokości ekranu dalej.
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const PIVOT_BELOW_UNDO = SCREEN_HEIGHT / 3;
+const BOTTOM_BAR_HEIGHT_ESTIMATE = 110;
+
+// Wylot: czas trwania liczony fizycznie jako dystans/prędkość gestu — im mocniej
+// "rzucisz" kartę, tym szybciej faktycznie opuszcza ekran, zamiast stałego czasu.
+const MIN_EXIT_DURATION = 160;
+const MAX_EXIT_DURATION = 420;
+const EXIT_Y_DELAY_RATIO = 0.28;
+const FLING_MIN_SPEED = 400;
+
+const ENTER_DURATION = 320;
+const ENTER_X_DELAY = 110;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
 function CustomSelect({
   label,
@@ -84,7 +110,6 @@ function prefetchPosters(movies: Movie[]) {
 
 export default function Swipe() {
   const { genreId, genreName } = useLocalSearchParams<{ genreId: string; genreName: string }>();
-  const stackRef = useRef<SwipeableStackRef>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -108,6 +133,13 @@ export default function Swipe() {
   const [areaSize, setAreaSize] = useState<{ width: number; height: number } | null>(null);
   const [undosLeft, setUndosLeft] = useState(0);
   const [fetchingMore, setFetchingMore] = useState(false);
+  const [runtimeCache, setRuntimeCache] = useState<Record<string, number | null>>({});
+  const [providersCache, setProvidersCache] = useState<Record<string, string[] | null>>({});
+
+  const cardTranslateX = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(0)).current;
+  const isAnimatingRef = useRef(false);
+  const lastSwipeDirectionRef = useRef<'left' | 'right' | null>(null);
 
   const loadMovies = async (activeSettings: GenreSettings) => {
     setLoading(true);
@@ -128,6 +160,8 @@ export default function Swipe() {
       currentPage += 1;
     }
 
+    cardTranslateX.setValue(0);
+    cardTranslateY.setValue(0);
     setMovies(collected);
     prefetchPosters(collected);
     setTotalPages(pages);
@@ -178,47 +212,174 @@ export default function Swipe() {
   const currentMovie = movies[currentIndex];
   const noMoviesAvailable = !loading && (movies.length === 0 || (currentIndex >= movies.length && page >= totalPages));
 
-  const handleSwipeLeft = (movie: Movie) => {
-    swipeLeft(movie);
+  useEffect(() => {
+    if (!currentMovie) return;
+    if (runtimeCache[currentMovie.id] !== undefined) return;
+    let cancelled = false;
+    fetchMovieRuntime(currentMovie.id).then((runtime) => {
+      if (!cancelled) {
+        setRuntimeCache((prev) => ({ ...prev, [currentMovie.id]: runtime }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentMovie?.id]);
+
+  useEffect(() => {
+    if (!currentMovie) return;
+    if (providersCache[currentMovie.id] !== undefined) return;
+    let cancelled = false;
+    fetchWatchProviders(currentMovie.id).then((providers) => {
+      if (!cancelled) {
+        setProvidersCache((prev) => ({ ...prev, [currentMovie.id]: providers }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentMovie?.id]);
+
+  const recordSwipe = (movie: Movie, direction: 'left' | 'right') => {
+    if (direction === 'left') swipeLeft(movie);
+    else swipeRight(movie);
+    lastSwipeDirectionRef.current = direction;
     setCurrentIndex((i) => i + 1);
     setUndosLeft(MAX_UNDOS_PER_SWIPE);
   };
 
-  const handleSwipeRight = (movie: Movie) => {
-    swipeRight(movie);
-    setCurrentIndex((i) => i + 1);
-    setUndosLeft(MAX_UNDOS_PER_SWIPE);
+  const animateEntrance = (fromDirection: 'left' | 'right') => {
+    const offsetX = (areaSize?.width || 400) * 1.3;
+    const offsetY = (areaSize?.height || 700) * 0.45;
+
+    cardTranslateX.setValue(fromDirection === 'left' ? offsetX : -offsetX);
+    cardTranslateY.setValue(-offsetY);
+
+    Animated.parallel([
+      Animated.timing(cardTranslateY, {
+        toValue: 0,
+        duration: ENTER_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(ENTER_X_DELAY),
+        Animated.timing(cardTranslateX, {
+          toValue: 0,
+          duration: ENTER_DURATION - ENTER_X_DELAY,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      isAnimatingRef.current = false;
+    });
+  };
+
+  // Czas wylotu liczony fizycznie: czas = dystans / prędkość gestu.
+  // Mocny "rzut" = krótszy czas (karta faktycznie leci szybciej), delikatny,
+  // ale wciąż ponad progiem = wolniejszy, ale wciąż spójny z tempem gestu.
+  const performSwipe = (direction: 'left' | 'right', velocityX: number, velocityY: number) => {
+    if (!currentMovie || isAnimatingRef.current) return;
+    isAnimatingRef.current = true;
+    const offsetX = (areaSize?.width || 400) * 1.3;
+    const offsetY = (areaSize?.height || 700) * 0.65;
+    const targetX = direction === 'left' ? -offsetX : offsetX;
+
+    const distance = Math.hypot(offsetX, offsetY);
+    const speed = Math.max(Math.hypot(velocityX, velocityY), FLING_MIN_SPEED);
+    const duration = clamp((distance / speed) * 1000, MIN_EXIT_DURATION, MAX_EXIT_DURATION);
+    const yDelay = duration * EXIT_Y_DELAY_RATIO;
+
+    Animated.parallel([
+      Animated.timing(cardTranslateX, {
+        toValue: targetX,
+        duration,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(yDelay),
+        Animated.timing(cardTranslateY, {
+          toValue: offsetY,
+          duration: duration - yDelay,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      recordSwipe(currentMovie, direction);
+      animateEntrance(direction);
+    });
+  };
+
+  // Delikatne puszczenie: sprężyna wystartowana z rzeczywistą prędkością gestu jako
+  // prędkością początkową — karta naturalnie "dojeżdża" w kierunku puszczenia,
+  // po czym płynnie, z bezwładnością, wraca na środek.
+  const snapBack = (velocityX: number, velocityY: number) => {
+    Animated.parallel([
+      Animated.spring(cardTranslateX, {
+        toValue: 0,
+        velocity: velocityX,
+        useNativeDriver: true,
+        friction: 9,
+        tension: 45,
+      }),
+      Animated.spring(cardTranslateY, {
+        toValue: 0,
+        velocity: velocityY,
+        useNativeDriver: true,
+        friction: 9,
+        tension: 45,
+      }),
+    ]).start();
+  };
+
+  // Przeciąganie — pozycja ustawiana bezpośrednio na podstawie ruchu palca w każdej
+  // klatce, więc prędkość karty z definicji dokładnie odpowiada prędkości gestu.
+  const handleGestureEvent = (event: any) => {
+    if (isAnimatingRef.current) return;
+    const { translationX, translationY } = event.nativeEvent;
+    const absX = Math.abs(translationX);
+
+    const curveY = DRAG_SLOPE * absX + FALL_QUAD_COEFF * absX * absX;
+    const y = curveY * (1 - DRAG_FREEDOM) + translationY * DRAG_FREEDOM;
+
+    cardTranslateX.setValue(translationX);
+    cardTranslateY.setValue(y);
+  };
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.oldState === State.ACTIVE) {
+      if (isAnimatingRef.current) return;
+      const { translationX, velocityX, velocityY } = event.nativeEvent;
+      const threshold = (areaSize?.width || 400) * 0.25;
+
+      if (translationX > threshold || velocityX > 800) {
+        performSwipe('right', velocityX, velocityY);
+      } else if (translationX < -threshold || velocityX < -800) {
+        performSwipe('left', velocityX, velocityY);
+      } else {
+        snapBack(velocityX, velocityY);
+      }
+    }
   };
 
   const handleUndo = () => {
-    if (undosLeft <= 0) return;
-    stackRef.current?.undo();
+    if (undosLeft <= 0 || isAnimatingRef.current || currentIndex === 0) return;
+    const dir = lastSwipeDirectionRef.current;
+    if (!dir) return;
+    isAnimatingRef.current = true;
+
     undoLast();
     setCurrentIndex((i) => Math.max(0, i - 1));
     setUndosLeft((u) => u - 1);
+
+    animateEntrance(dir);
   };
 
-  const handleWantButton = () => {
-    if (!currentMovie) return;
-    // @ts-ignore
-    if (typeof stackRef.current?.swipeRight === 'function') {
-      // @ts-ignore
-      stackRef.current.swipeRight();
-    } else {
-      handleSwipeRight(currentMovie);
-    }
-  };
-
-  const handleDontWantButton = () => {
-    if (!currentMovie) return;
-    // @ts-ignore
-    if (typeof stackRef.current?.swipeLeft === 'function') {
-      // @ts-ignore
-      stackRef.current.swipeLeft();
-    } else {
-      handleSwipeLeft(currentMovie);
-    }
-  };
+  const handleWantButton = () => performSwipe('right', 900, 300);
+  const handleDontWantButton = () => performSwipe('left', -900, 300);
 
   const openSettings = () => {
     setDraftSettings(settings);
@@ -235,9 +396,28 @@ export default function Swipe() {
   let cardWidth = 0;
   let cardHeight = 0;
   if (areaSize) {
-    cardHeight = areaSize.height * 0.99;
+    cardHeight = areaSize.height * 0.9;
     cardWidth = Math.min(cardHeight * (2 / 3), areaSize.width * 0.94);
   }
+
+  // Rotacja jako interpolacja bezpośrednio z pozycji X — automatycznie podąża
+  // za kartą niezależnie od tego, który mechanizm (timing/spring) ją porusza.
+  const pivotOffset = cardHeight / 2 + BOTTOM_BAR_HEIGHT_ESTIMATE + PIVOT_BELOW_UNDO;
+  const rotationMaxX = (areaSize?.width || 400) * 1.3;
+  const rotationSteps = 10;
+  const rotationInputRange: number[] = [];
+  const rotationOutputRange: string[] = [];
+  for (let i = -rotationSteps; i <= rotationSteps; i++) {
+    const x = (i / rotationSteps) * rotationMaxX;
+    const angleDeg = (Math.atan2(x, pivotOffset || 1) * 180) / Math.PI;
+    rotationInputRange.push(x);
+    rotationOutputRange.push(`${angleDeg}deg`);
+  }
+  const rotateInterpolate = cardTranslateX.interpolate({
+    inputRange: rotationInputRange,
+    outputRange: rotationOutputRange,
+    extrapolate: 'clamp',
+  });
 
   const scoreMinOptions = SCORE_RANGE.filter((v) => v <= draftSettings.scoreMax).map((v) => ({ value: v, label: String(v) }));
   const scoreMaxOptions = SCORE_RANGE.filter((v) => v >= draftSettings.scoreMin).map((v) => ({ value: v, label: String(v) }));
@@ -246,8 +426,26 @@ export default function Swipe() {
   const countryOptions = COUNTRY_OPTIONS.map((c) => ({ value: c.code, label: c.label }));
   const countryLabel = COUNTRY_OPTIONS.find((c) => c.code === draftSettings.country)?.label ?? 'Dowolny kraj';
 
+  const activeCountryLabel = COUNTRY_OPTIONS.find((c) => c.code === settings.country)?.label;
+  const filtersSummary = `${settings.scoreMin}–${settings.scoreMax} • ${settings.yearMin}–${settings.yearMax}${
+    settings.country ? ` • ${activeCountryLabel}` : ''
+  }`;
+
+  const runtime = currentMovie ? runtimeCache[currentMovie.id] : undefined;
+  const subtitleParts = currentMovie
+    ? [currentMovie.country, runtime ? `${runtime} min` : runtime === null ? null : '...', `${currentMovie.voteAverage.toFixed(1)}/10`]
+        .filter(Boolean)
+        .join(' • ')
+    : '';
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Image
+        source={require('../assets/images/moviematchbackground.png')}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
+
       <View style={[styles.backRow, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.backArrow}>←</Text>
@@ -259,9 +457,10 @@ export default function Swipe() {
           <Text style={styles.headerButtonText}>Match!</Text>
         </TouchableOpacity>
 
-        <Text style={styles.movieTitle} numberOfLines={1}>
-          {loading ? 'Ładowanie...' : currentMovie ? `${currentMovie.title} (${currentMovie.year})` : noMoviesAvailable ? 'Brak wyników' : ''}
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.genreLine} numberOfLines={1}>{genreName}</Text>
+          <Text style={styles.filtersLine} numberOfLines={1}>{filtersSummary}</Text>
+        </View>
 
         <TouchableOpacity style={styles.headerButton} onPress={openSettings}>
           <Text style={styles.headerButtonText}>⚙</Text>
@@ -275,17 +474,27 @@ export default function Swipe() {
           setAreaSize({ width, height });
         }}
       >
-        {areaSize && !loading && movies.length > 0 && !noMoviesAvailable && (
-          <SwipeableStack
-            key={`${genreId}-${settings.scoreMin}-${settings.scoreMax}-${settings.yearMin}-${settings.yearMax}-${settings.country}`}
-            ref={stackRef}
-            data={movies}
-            keyExtractor={(item) => item.id}
-            visibleCards={3}
-            renderCard={(movie) => (
+        {areaSize && !loading && currentMovie && !noMoviesAvailable && (
+          <PanGestureHandler
+            onGestureEvent={handleGestureEvent}
+            onHandlerStateChange={onHandlerStateChange}
+            activeOffsetX={[-10, 10]}
+            failOffsetY={[-20, 20]}
+          >
+            <Animated.View
+              style={{
+                width: cardWidth,
+                height: cardHeight,
+                transform: [
+                  { translateX: cardTranslateX },
+                  { translateY: cardTranslateY },
+                  { rotate: rotateInterpolate },
+                ],
+              }}
+            >
               <View style={[styles.card, { width: cardWidth, height: cardHeight }]}>
                 <Image
-                  source={{ uri: movie.image }}
+                  source={{ uri: currentMovie.image }}
                   style={{ width: cardWidth * 0.875, height: cardHeight * 0.833 }}
                   contentFit="contain"
                   transition={0}
@@ -297,15 +506,23 @@ export default function Swipe() {
                     contentContainerStyle={styles.descriptionScrollContent}
                   >
                     <View style={styles.descriptionSpacer} />
-                    <Text style={styles.descriptionTitle}>{movie.title}</Text>
-                    <Text style={styles.descriptionText}>{movie.description}</Text>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.descriptionTitle} numberOfLines={2}>{currentMovie.title}</Text>
+                      <Text style={styles.providersText} numberOfLines={2}>
+                        {providersCache[currentMovie.id] === undefined
+                          ? '...'
+                          : providersCache[currentMovie.id]?.length
+                          ? providersCache[currentMovie.id]!.join('\n')
+                          : 'Brak w VOD'}
+                      </Text>
+                    </View>
+                    <Text style={styles.descriptionSubtitle}>({subtitleParts})</Text>
+                    <Text style={styles.descriptionText}>{currentMovie.description}</Text>
                   </ScrollView>
                 </View>
               </View>
-            )}
-            onSwipeLeft={handleSwipeLeft}
-            onSwipeRight={handleSwipeRight}
-          />
+            </Animated.View>
+          </PanGestureHandler>
         )}
 
         {areaSize && noMoviesAvailable && (
@@ -420,14 +637,9 @@ const styles = StyleSheet.create({
   },
   headerButtonText: { color: '#E8E4D9', fontSize: 13, fontWeight: 'bold' },
 
-  movieTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#E8E4D9',
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
+  headerCenter: { flex: 1, marginHorizontal: 8, alignItems: 'center' },
+  genreLine: { color: '#E8E4D9', fontSize: 15, fontWeight: 'bold' },
+  filtersLine: { color: '#B5AFA0', fontSize: 15, marginTop: 2 },
 
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -454,7 +666,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -463,7 +675,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   descriptionSpacer: { height: 20 },
-  descriptionTitle: { color: '#E8E4D9', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
+  descriptionTitle: { color: '#E8E4D9', fontSize: 22, fontWeight: 'bold', flex: 1, marginRight: 8 },
+  providersText: { color: '#B5AFA0', fontSize: 12, textAlign: 'right', maxWidth: '35%' },
+
+  descriptionSubtitle: { color: '#B5AFA0', fontSize: 12, marginBottom: 8 },
   descriptionText: { color: '#E8E4D9', fontSize: 16, lineHeight: 21 },
 
   bottomRow: {

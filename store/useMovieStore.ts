@@ -8,6 +8,8 @@ export interface Movie {
   description: string;
   image: string;
   year: string;
+  country: string;
+  voteAverage: number;
 }
 
 interface Decision {
