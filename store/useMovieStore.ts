@@ -1,78 +1,104 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 export interface Movie {
   id: string;
   title: string;
   description: string;
-  image: any;
+  image: string;
+  year: string;
 }
 
-const initialMovies: Movie[] = [
-  { id: '1', title: 'test 1', description: 'Krótki opis pierwszego filmu.', image: require('../assets/photos/Wiktoria_test_1.jpg') },
-  { id: '2', title: 'test 2', description: 'Krótki opis drugiego filmu.', image: require('../assets/photos/Wiktoria_test_2.jpg') },
-  { id: '3', title: 'test 3', description: 'Krótki opis trzeciego filmu.', image: require('../assets/photos/Wiktoria_test_3.jpg') },
-  { id: '4', title: 'test 4', description: 'Krótki opis czwartego filmu.', image: require('../assets/photos/Wiktoria_test_4.jpg') },
-  { id: '5', title: 'test 5', description: 'Krótki opis piątego filmu.', image: require('../assets/photos/Wiktoria_test_5.jpg') },
-];
-
-interface HistoryEntry {
+interface Decision {
   movie: Movie;
   direction: 'left' | 'right';
+  timestamp: number;
 }
+
+export interface GenreSettings {
+  scoreMin: number;
+  scoreMax: number;
+  yearMin: number;
+  yearMax: number;
+  country: string;
+}
+
+const DEFAULT_SETTINGS: GenreSettings = {
+  scoreMin: 6,
+  scoreMax: 10,
+  yearMin: 2000,
+  yearMax: 2026,
+  country: '',
+};
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface MovieStore {
-  queue: Movie[];
-  liked: Movie[];
-  disliked: Movie[];
-  history: HistoryEntry[];
+  decisions: Decision[];
+  settings: Record<number, GenreSettings>;
   swipeRight: (movie: Movie) => void;
   swipeLeft: (movie: Movie) => void;
-  removeLiked: (movie: Movie) => void;
-  removeDisliked: (movie: Movie) => void;
   undoLast: () => void;
+  getExcludedIds: () => Set<string>;
+  getLikedMovies: () => Movie[];
+  getSettingsForGenre: (genreId: number) => GenreSettings;
+  setSettingsForGenre: (genreId: number, settings: GenreSettings) => void;
 }
 
-export const useMovieStore = create<MovieStore>((set, get) => ({
-  queue: initialMovies,
-  liked: [],
-  disliked: [],
-  history: [],
+export const useMovieStore = create<MovieStore>()(
+  persist(
+    (set, get) => ({
+      decisions: [],
+      settings: {},
 
-  swipeRight: (movie) =>
-    set((state) => ({
-      queue: state.queue.filter((m) => m.id !== movie.id),
-      liked: [...state.liked, movie],
-      history: [...state.history, { movie, direction: 'right' }],
-    })),
+      swipeRight: (movie) =>
+        set((state) => ({
+          decisions: [...state.decisions, { movie, direction: 'right', timestamp: Date.now() }],
+        })),
 
-  swipeLeft: (movie) =>
-    set((state) => ({
-      queue: state.queue.filter((m) => m.id !== movie.id),
-      disliked: [...state.disliked, movie],
-      history: [...state.history, { movie, direction: 'left' }],
-    })),
+      swipeLeft: (movie) =>
+        set((state) => ({
+          decisions: [...state.decisions, { movie, direction: 'left', timestamp: Date.now() }],
+        })),
 
-  removeLiked: (movie) =>
-    set((state) => ({
-      liked: state.liked.filter((m) => m.id !== movie.id),
-      queue: [...state.queue, movie],
-    })),
+      undoLast: () =>
+        set((state) => ({
+          decisions: state.decisions.slice(0, -1),
+        })),
 
-  removeDisliked: (movie) =>
-    set((state) => ({
-      disliked: state.disliked.filter((m) => m.id !== movie.id),
-      queue: [...state.queue, movie],
-    })),
+      getExcludedIds: () => {
+        const { decisions } = get();
+        const now = Date.now();
+        const ids = new Set<string>();
+        decisions.forEach((d) => {
+          if (d.direction === 'right') {
+            ids.add(d.movie.id);
+          } else if (now - d.timestamp < SEVEN_DAYS_MS) {
+            ids.add(d.movie.id);
+          }
+        });
+        return ids;
+      },
 
-  undoLast: () => {
-    const { history } = get();
-    if (history.length === 0) return;
-    const last = history[history.length - 1];
-    set((state) => ({
-      history: state.history.slice(0, -1),
-      liked: last.direction === 'right' ? state.liked.filter((m) => m.id !== last.movie.id) : state.liked,
-      disliked: last.direction === 'left' ? state.disliked.filter((m) => m.id !== last.movie.id) : state.disliked,
-      queue: [last.movie, ...state.queue],
-    }));
-  },
-}));
+      getLikedMovies: () => {
+        const { decisions } = get();
+        return decisions.filter((d) => d.direction === 'right').map((d) => d.movie);
+      },
+
+      getSettingsForGenre: (genreId) => {
+        const { settings } = get();
+        return settings[genreId] || DEFAULT_SETTINGS;
+      },
+
+      setSettingsForGenre: (genreId, newSettings) =>
+        set((state) => ({
+          settings: { ...state.settings, [genreId]: newSettings },
+        })),
+    }),
+    {
+      name: 'movie-store',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);
