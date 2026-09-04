@@ -72,3 +72,35 @@ export async function fetchWatchProviders(movieId: string): Promise<string[]> {
   const plProviders = data.results?.PL?.flatrate || [];
   return plProviders.map((p: any) => p.provider_name).slice(0, 3);
 }
+
+export interface MovieFullDetails extends Movie {
+  runtime: number | null;
+  providers: string[];
+}
+
+// Pełne dane filmu na żądanie (np. po kliknięciu w pozycję na liście "wspólnie
+// polubione") — jedno zapytanie łączące szczegóły, czas trwania i dostawców VOD.
+export async function fetchMovieFullDetails(movieId: string): Promise<MovieFullDetails | null> {
+  const params = new URLSearchParams();
+  params.set('api_key', API_KEY || '');
+  params.set('language', 'pl-PL');
+  params.set('append_to_response', 'watch/providers');
+
+  const response = await fetch(`${BASE_URL}/movie/${movieId}?${params.toString()}`);
+  const data = await response.json();
+  if (!data || data.success === false) return null;
+
+  const plProviders = data['watch/providers']?.results?.PL?.flatrate || [];
+
+  return {
+    id: String(data.id),
+    title: data.title,
+    description: data.overview || 'Brak opisu.',
+    image: data.poster_path ? `${IMAGE_BASE}${data.poster_path}` : '',
+    year: data.release_date ? data.release_date.slice(0, 4) : '—',
+    country: (data.origin_country && data.origin_country[0]) || data.original_language?.toUpperCase() || '—',
+    voteAverage: typeof data.vote_average === 'number' ? data.vote_average : 0,
+    runtime: typeof data.runtime === 'number' && data.runtime > 0 ? data.runtime : null,
+    providers: plProviders.map((p: any) => p.provider_name).slice(0, 3),
+  };
+}

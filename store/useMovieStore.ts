@@ -12,12 +12,6 @@ export interface Movie {
   voteAverage: number;
 }
 
-interface Decision {
-  movie: Movie;
-  direction: 'left' | 'right';
-  timestamp: number;
-}
-
 export interface GenreSettings {
   scoreMin: number;
   scoreMax: number;
@@ -34,16 +28,11 @@ const DEFAULT_SETTINGS: GenreSettings = {
   country: '',
 };
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
+// Filtry gatunków (ocena/rok/kraj) zostają lokalne na urządzeniu — to preferencje
+// przeglądania, nie dane wspólne ze znajomym. Same decyzje (swipe'y) i dopasowania
+// są od teraz w Supabase — patrz store/useDecisionsStore.ts.
 interface MovieStore {
-  decisions: Decision[];
   settings: Record<number, GenreSettings>;
-  swipeRight: (movie: Movie) => void;
-  swipeLeft: (movie: Movie) => void;
-  undoLast: () => void;
-  getExcludedIds: () => Set<string>;
-  getLikedMovies: () => Movie[];
   getSettingsForGenre: (genreId: number) => GenreSettings;
   setSettingsForGenre: (genreId: number, settings: GenreSettings) => void;
 }
@@ -51,42 +40,7 @@ interface MovieStore {
 export const useMovieStore = create<MovieStore>()(
   persist(
     (set, get) => ({
-      decisions: [],
       settings: {},
-
-      swipeRight: (movie) =>
-        set((state) => ({
-          decisions: [...state.decisions, { movie, direction: 'right', timestamp: Date.now() }],
-        })),
-
-      swipeLeft: (movie) =>
-        set((state) => ({
-          decisions: [...state.decisions, { movie, direction: 'left', timestamp: Date.now() }],
-        })),
-
-      undoLast: () =>
-        set((state) => ({
-          decisions: state.decisions.slice(0, -1),
-        })),
-
-      getExcludedIds: () => {
-        const { decisions } = get();
-        const now = Date.now();
-        const ids = new Set<string>();
-        decisions.forEach((d) => {
-          if (d.direction === 'right') {
-            ids.add(d.movie.id);
-          } else if (now - d.timestamp < SEVEN_DAYS_MS) {
-            ids.add(d.movie.id);
-          }
-        });
-        return ids;
-      },
-
-      getLikedMovies: () => {
-        const { decisions } = get();
-        return decisions.filter((d) => d.direction === 'right').map((d) => d.movie);
-      },
 
       getSettingsForGenre: (genreId) => {
         const { settings } = get();

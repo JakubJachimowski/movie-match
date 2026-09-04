@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GENRES } from '../../constants/genres';
 
 export default function Home() {
@@ -28,27 +28,27 @@ export default function Home() {
           <Text style={styles.appTitle}>MovieMatch</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => Alert.alert('Ustawienia', 'Konto, dźwięk i ustawienia aplikacji — wkrótce.')}
+        <Pressable
+          style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
+          onPress={() => router.push('/account')}
         >
           <Text style={styles.settingsIcon}>⚙</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={styles.genreArea}>
         {rows.map((row, idx) => (
           <View key={idx} style={styles.genreRow}>
             {row.map((genre) => (
-              <TouchableOpacity
+              <Pressable
                 key={genre.id}
-                style={styles.genreTile}
+                style={({ pressed }) => [styles.genreTile, pressed && styles.genreTilePressed]}
                 onPress={() =>
                   router.push({ pathname: '/swipe', params: { genreId: genre.id, genreName: genre.name } })
                 }
               >
                 <Text style={styles.genreText}>{genre.name}</Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         ))}
@@ -83,6 +83,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  settingsButtonPressed: { backgroundColor: 'rgba(0,0,0,0.75)' },
   settingsIcon: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
 
   genreArea: { flex: 1, padding: 12 },
@@ -97,5 +98,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  genreTilePressed: { backgroundColor: '#333025' },
   genreText: { color: '#E8E4D9', fontSize: 16, fontWeight: 'bold' },
 });
