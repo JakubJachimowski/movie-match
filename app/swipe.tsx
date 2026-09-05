@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GenreSettingsModal, COUNTRY_OPTIONS } from '../components/swipe/GenreSettingsModal';
+import { GenreSettingsModal, COUNTRY_OPTIONS, PROVIDER_OPTIONS } from '../components/swipe/GenreSettingsModal';
 import { MatchPopup } from '../components/swipe/MatchPopup';
 import { EmptyMovieCard, MovieCard } from '../components/swipe/MovieCard';
 import { useCardSwipeAnimation } from '../hooks/useCardSwipeAnimation';
@@ -100,7 +100,7 @@ export default function Swipe() {
     setUndosLeft(MAX_UNDOS_PER_SWIPE);
   };
 
-  const { cardTranslateX, cardTranslateY, rotateInterpolate, isAnimatingRef, handleGestureEvent, onHandlerStateChange, performSwipe, animateEntrance } =
+  const { cardTranslateX, cardTranslateY, rotateInterpolate, tintEnabled, isAnimatingRef, handleGestureEvent, onHandlerStateChange, animateEntrance } =
     useCardSwipeAnimation({
       areaSize,
       cardHeight,
@@ -152,9 +152,6 @@ export default function Swipe() {
     animateEntrance(dir);
   };
 
-  const handleWantButton = () => performSwipe('right', 900, 300);
-  const handleDontWantButton = () => performSwipe('left', -900, 300);
-
   const handleMatchButtonPress = () => {
     if (activeConnectionId) markMatchSeen(activeConnectionId);
     router.push('/matched');
@@ -172,10 +169,31 @@ export default function Swipe() {
     deck.reload(draftSettings);
   };
 
-  const activeCountryLabel = COUNTRY_OPTIONS.find((c) => c.code === settings.country)?.label;
-  const filtersSummary = `${settings.scoreMin} – ${settings.scoreMax}  •  ${settings.yearMin} – ${settings.yearMax}${
-    settings.country ? `  •  ${activeCountryLabel}` : ''
-  }`;
+  // Podsumowanie filtrów rozbite na osobne wiersze (bez kropek-separatorów) —
+  // kraj i platformy VOD to opcjonalne wiersze, wyświetlane tylko gdy ustawione.
+  const countryLabels = settings.countries
+    .map((code) => COUNTRY_OPTIONS.find((c) => c.code === code)?.label)
+    .filter(Boolean);
+  const providerLabels = settings.providers
+    .map((id) => PROVIDER_OPTIONS.find((p) => p.id === id)?.label)
+    .filter(Boolean);
+
+  const summaryLines = [
+    `Ocena: ${settings.scoreMin} – ${settings.scoreMax}`,
+    `Rok: ${settings.yearMin} – ${settings.yearMax}`,
+    countryLabels.length ? `Kraj: ${countryLabels.join(', ')}` : null,
+    providerLabels.length ? `VOD: ${providerLabels.join(', ')}` : null,
+  ].filter((line): line is string => !!line);
+
+  // Wyrównanie przycisków Match!/Filtry do wiersza z aktualnym filtrem roku:
+  // mierzymy pozycję tego wiersza oraz wysokość przycisku, żeby ich środki
+  // pokrywały się (patrz onLayout niżej).
+  const [yearRowLayout, setYearRowLayout] = useState<{ y: number; height: number } | null>(null);
+  const [headerButtonHeight, setHeaderButtonHeight] = useState(0);
+  const headerButtonMarginTop =
+    yearRowLayout && headerButtonHeight
+      ? Math.max(0, yearRowLayout.y + yearRowLayout.height / 2 - headerButtonHeight / 2)
+      : 0;
 
   const runtime = currentMovie ? runtimeCache[currentMovie.id] : undefined;
   const providers = currentMovie ? providersCache[currentMovie.id] : undefined;
@@ -191,25 +209,40 @@ export default function Swipe() {
       />
 
       <View style={[styles.backRow, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.headerRow, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
         <TouchableOpacity
-          style={[styles.headerButton, hasUnseenMatch && styles.headerButtonHighlighted]}
+          style={[styles.headerButton, { marginTop: headerButtonMarginTop }, hasUnseenMatch && styles.headerButtonHighlighted]}
           onPress={handleMatchButtonPress}
+          onLayout={(e) => setHeaderButtonHeight(e.nativeEvent.layout.height)}
         >
-          <Text style={styles.headerButtonText}>Match!</Text>
+          <Text style={styles.headerButtonText}>Match!'ed</Text>
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <Text style={styles.genreLine} numberOfLines={1}>{genreName}</Text>
-          <Text style={styles.filtersLine} numberOfLines={1}>{filtersSummary}</Text>
+          {summaryLines.map((line, idx) => (
+            <Text
+              key={line}
+              style={styles.filtersLine}
+              numberOfLines={1}
+              // Wiersz z aktualnym filtrem roku to zawsze drugi wiersz podsumowania
+              // (po ocenie) — jego pozycja steruje wyrównaniem przycisków obok.
+              onLayout={idx === 1 ? (e) => setYearRowLayout(e.nativeEvent.layout) : undefined}
+            >
+              {line}
+            </Text>
+          ))}
         </View>
 
-        <TouchableOpacity style={styles.headerButton} onPress={openSettings}>
+        <TouchableOpacity
+          style={[styles.headerButton, { marginTop: headerButtonMarginTop }]}
+          onPress={openSettings}
+        >
           <Text style={styles.headerButtonText}>Filtry</Text>
         </TouchableOpacity>
       </View>
@@ -240,6 +273,7 @@ export default function Swipe() {
                 cardTranslateX={cardTranslateX}
                 cardTranslateY={cardTranslateY}
                 rotateInterpolate={rotateInterpolate}
+                tintEnabled={tintEnabled}
                 onGestureEvent={handleGestureEvent}
                 onHandlerStateChange={onHandlerStateChange}
               />
@@ -250,28 +284,16 @@ export default function Swipe() {
         )}
       </View>
 
+      {/* "Nie chcę"/"Chcę" usunięte — wybór filmu odbywa się wyłącznie przez
+          przesunięcie karty (gest), Cofnij zostaje jedynym przyciskiem. */}
       <View style={[styles.bottomRow, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={[styles.bottomSlot, { alignItems: 'flex-start' }]}>
-          <TouchableOpacity style={styles.sideButton} onPress={handleDontWantButton}>
-            <Text style={styles.sideButtonText}>Nie chcę</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.bottomSlot, { alignItems: 'center' }]}>
-          <TouchableOpacity
-            style={[styles.undoButton, undosLeft <= 0 && styles.undoButtonDisabled]}
-            onPress={handleUndo}
-            disabled={undosLeft <= 0}
-          >
-            <Text style={styles.undoText}>Cofnij</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.bottomSlot, { alignItems: 'flex-end' }]}>
-          <TouchableOpacity style={styles.sideButton} onPress={handleWantButton}>
-            <Text style={styles.sideButtonText}>Chcę</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.undoButton, undosLeft <= 0 && styles.undoButtonDisabled]}
+          onPress={handleUndo}
+          disabled={undosLeft <= 0}
+        >
+          <Text style={styles.undoText}>Cofnij</Text>
+        </TouchableOpacity>
       </View>
 
       <GenreSettingsModal
@@ -300,18 +322,25 @@ const styles = StyleSheet.create({
   backRow: { flexDirection: 'row' },
   backArrow: { color: '#E8E4D9', fontSize: 26 },
 
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  // Wyrównanie do góry: przyciski Match!/Filtry dostają dynamiczny marginTop,
+  // żeby ich tekst wypadał na równi z wierszem podsumowania filtra roku (patrz
+  // headerButtonMarginTop w komponencie).
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  // Ten sam "chrom" co przyciski na ekranie głównym (Znajomi/Match!'ed), plus 10%
+  // większy rozmiar względem poprzedniej wersji tego przycisku (44 -> ~48).
   headerButton: {
-    backgroundColor: '#333',
-    minWidth: 44,
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 22,
+    backgroundColor: '#1E1D18',
+    borderWidth: 0.5,
+    borderColor: '#B5AFA0',
+    minWidth: 48,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonHighlighted: { backgroundColor: '#E8A33D' },
-  headerButtonText: { color: '#E8E4D9', fontSize: 13, fontWeight: 'bold' },
+  headerButtonHighlighted: { backgroundColor: '#E8A33D', borderColor: '#E8A33D' },
+  headerButtonText: { color: '#E8E4D9', fontSize: 14, fontWeight: 'bold' },
 
   headerCenter: { flex: 1, marginHorizontal: 8, alignItems: 'center' },
   genreLine: { color: '#E8E4D9', fontSize: 20, fontWeight: 'bold' },
@@ -336,14 +365,10 @@ const styles = StyleSheet.create({
   emptyCardText: { color: '#E8E4D9', fontSize: 16, textAlign: 'center', lineHeight: 22 },
 
   bottomRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10,
   },
-  bottomSlot: { flex: 1 },
-  sideButton: { backgroundColor: '#333', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 30 },
-  sideButtonText: { color: '#E8E4D9', fontSize: 14, fontWeight: 'bold' },
   undoButton: { backgroundColor: '#333', width: 65, height: 65, borderRadius: 33, alignItems: 'center', justifyContent: 'center' },
   undoButtonDisabled: { opacity: 0.35 },
   undoText: { color: '#E8E4D9', fontSize: 12, fontWeight: 'bold' },

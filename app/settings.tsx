@@ -15,7 +15,7 @@ export default function SettingsScreen() {
       <View style={styles.overlay} />
 
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ustawienia</Text>
@@ -23,8 +23,12 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.content}>
+        <TouchableOpacity style={styles.editProfileButton} onPress={() => router.push('/profile')}>
+          <Text style={styles.editProfileButtonText}>Edytuj profil</Text>
+        </TouchableOpacity>
+
         <Text style={styles.placeholderText}>
-          Ustawienia aplikacji (dźwięk, powiadomienia i inne) pojawią się tutaj wkrótce.
+          Pozostałe ustawienia aplikacji (dźwięk, powiadomienia i inne) pojawią się tutaj wkrótce.
         </Text>
       </View>
     </View>
@@ -45,5 +49,13 @@ const styles = StyleSheet.create({
   backArrow: { color: '#E8E4D9', fontSize: 26 },
   headerTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  editProfileButton: {
+    backgroundColor: '#333',
+    borderRadius: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginBottom: 24,
+  },
+  editProfileButtonText: { color: '#E8E4D9', fontWeight: 'bold' },
   placeholderText: { color: '#B5AFA0', fontSize: 15, textAlign: 'center', lineHeight: 22 },
 });

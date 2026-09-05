@@ -9,7 +9,8 @@ export interface MovieFilters {
   scoreMax: number;
   yearMin: number;
   yearMax: number;
-  country: string;
+  countries: string[];
+  providers: number[];
 }
 
 export async function fetchMoviesByGenre(
@@ -28,8 +29,13 @@ export async function fetchMoviesByGenre(
   params.set('primary_release_date.lte', `${filters.yearMax}-12-31`);
   params.set('vote_count.gte', '100');
   params.set('page', String(page));
-  if (filters.country) {
-    params.set('with_origin_country', filters.country);
+  // "|" = OR w składni TMDB discover — dowolny z wybranych krajów/platform pasuje.
+  if (filters.countries.length > 0) {
+    params.set('with_origin_country', filters.countries.join('|'));
+  }
+  if (filters.providers.length > 0) {
+    params.set('with_watch_providers', filters.providers.join('|'));
+    params.set('watch_region', 'PL');
   }
 
   const response = await fetch(`${BASE_URL}/discover/movie?${params.toString()}`);
@@ -71,6 +77,35 @@ export async function fetchWatchProviders(movieId: string): Promise<string[]> {
 
   const plProviders = data.results?.PL?.flatrate || [];
   return plProviders.map((p: any) => p.provider_name).slice(0, 3);
+}
+
+export interface MovieSearchResult {
+  id: string;
+  title: string;
+  year: string | null;
+  image: string | null;
+}
+
+// Wyszukiwanie filmów po tytule — używane przy wybieraniu "ulubionych filmów"
+// w profilu (użytkownik szuka i wybiera z wyników TMDB).
+export async function searchMovies(query: string): Promise<MovieSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const params = new URLSearchParams();
+  params.set('api_key', API_KEY || '');
+  params.set('language', 'pl-PL');
+  params.set('query', trimmed);
+  params.set('include_adult', 'false');
+
+  const response = await fetch(`${BASE_URL}/search/movie?${params.toString()}`);
+  const data = await response.json();
+
+  return (data.results || []).slice(0, 20).map((m: any) => ({
+    id: String(m.id),
+    title: m.title,
+    year: m.release_date ? m.release_date.slice(0, 4) : null,
+    image: m.poster_path ? `${IMAGE_BASE}${m.poster_path}` : null,
+  }));
 }
 
 export interface MovieFullDetails extends Movie {

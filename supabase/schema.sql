@@ -16,6 +16,12 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- Ulubione gatunki (do 3, id-ki z TMDB) i ulubione filmy (do 3, {id,title,image,year})
+-- wypełniane przez użytkownika w profilu. Migracja bezpieczna do wielokrotnego uruchomienia.
+alter table public.profiles
+  add column if not exists favorite_genres integer[] not null default '{}',
+  add column if not exists favorite_movies jsonb not null default '[]'::jsonb;
+
 -- =========================================================
 -- 2. CONNECTIONS (parowanie dwóch użytkowników)
 -- =========================================================
@@ -79,6 +85,65 @@ create table if not exists public.matches (
 );
 
 alter table public.matches enable row level security;
+
+-- =========================================================
+-- 4b. MATCH_RATINGS ("obejrzane" + własna ocena na liście dopasowań)
+-- =========================================================
+-- Osobny wiersz per (match, user) — każda strona pary trzyma swoje "obejrzane"
+-- i swoją ocenę niezależnie od drugiej osoby. Wyłącznie lokalnie w Supabase,
+-- NIE synchronizowane z TMDB.
+create table if not exists public.match_ratings (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  watched boolean not null default false,
+  user_score smallint check (user_score is null or (user_score between 1 and 10)),
+  updated_at timestamptz not null default now(),
+  unique (match_id, user_id)
+);
+
+alter table public.match_ratings enable row level security;
+
+-- Widoczność ocen: nie tylko własnych, ale też oceny znajomego dla wspólnych
+-- dopasowań (potrzebne do znaczka oceny podzielonego po przekątnej — połówka
+-- z oceną znajomego). Ograniczone do dopasowań z połączeń w statusie
+-- "accepted", w których użytkownik faktycznie uczestniczy.
+drop policy if exists match_ratings_select_own on public.match_ratings;
+drop policy if exists match_ratings_select_shared on public.match_ratings;
+create policy match_ratings_select_shared
+  on public.match_ratings for select
+  using (
+    match_id in (
+      select m.id
+      from public.matches m
+      join public.connections c on c.id = m.connection_id
+      where c.status = 'accepted' and (c.user_a = auth.uid() or c.user_b = auth.uid())
+    )
+  );
+
+drop policy if exists match_ratings_insert_own on public.match_ratings;
+create policy match_ratings_insert_own
+  on public.match_ratings for insert
+  with check (
+    user_id = auth.uid()
+    and match_id in (
+      select m.id from public.matches m
+      join public.connections c on c.id = m.connection_id
+      where c.status = 'accepted' and (c.user_a = auth.uid() or c.user_b = auth.uid())
+    )
+  );
+
+drop policy if exists match_ratings_update_own on public.match_ratings;
+create policy match_ratings_update_own
+  on public.match_ratings for update
+  using (user_id = auth.uid());
+
+drop policy if exists match_ratings_delete_own on public.match_ratings;
+create policy match_ratings_delete_own
+  on public.match_ratings for delete
+  using (user_id = auth.uid());
+
+grant select, insert, update, delete on public.match_ratings to authenticated;
 
 -- =========================================================
 -- 5. FUNKCJE POMOCNICZE
@@ -236,6 +301,13 @@ create policy connections_select_own
   on public.connections for select
   using (user_a = auth.uid() or user_b = auth.uid());
 
+-- Usuwanie znajomego (przycisk z czerwonym krzyżykiem na liście znajomych) —
+-- każda ze stron połączenia może je usunąć bezpośrednio z klienta.
+drop policy if exists connections_delete_own on public.connections;
+create policy connections_delete_own
+  on public.connections for delete
+  using (user_a = auth.uid() or user_b = auth.uid());
+
 -- decisions
 drop policy if exists decisions_select_own_or_partner on public.decisions;
 create policy decisions_select_own_or_partner
@@ -298,7 +370,7 @@ end $$;
 -- =========================================================
 grant usage on schema public to authenticated;
 grant select, insert, update on public.profiles to authenticated;
-grant select on public.connections to authenticated;
+grant select, delete on public.connections to authenticated;
 grant select, insert, update, delete on public.decisions to authenticated;
 grant select on public.matches to authenticated;
 
@@ -308,6 +380,19 @@ grant select on public.matches to authenticated;
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
+
+-- BRAKUJĄCA POLITYKA — to jest właściwa przyczyna znanego buga z RLS przy
+-- uploadzie avatara (wcześniej podejrzewano nowy format kluczy sb_publishable_,
+-- zweryfikowane empirycznie że to nie to). Storage API Supabase po insert/update
+-- musi umieć odczytać z powrotem wiersz obiektu (np. do zbudowania odpowiedzi /
+-- obsługi upsert) — bez polityki SELECT na bucket "avatars" ten odczyt jest
+-- blokowany przez RLS, co objawia się błędem przy uploadzie mimo poprawnej
+-- polityki insert. Bucket i tak jest publiczny (public: true), więc szerokie
+-- SELECT nie osłabia bezpieczeństwa — nie ma tu żadnych prywatnych danych.
+drop policy if exists avatars_select_all on storage.objects;
+create policy avatars_select_all
+  on storage.objects for select
+  using (bucket_id = 'avatars');
 
 drop policy if exists avatars_insert_own on storage.objects;
 create policy avatars_insert_own

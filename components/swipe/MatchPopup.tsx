@@ -14,7 +14,7 @@ export function MatchPopup({ visible, title, year, image, onClose }: MatchPopupP
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
-          <Text style={styles.heading}>To dopasowanie! 🎉</Text>
+          <Text style={styles.heading}>Match!'ed 🎉</Text>
           {image ? <Image source={{ uri: image }} style={styles.poster} contentFit="cover" /> : null}
           <Text style={styles.title} numberOfLines={2}>
             {title}

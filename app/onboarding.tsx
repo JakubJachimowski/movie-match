@@ -13,6 +13,15 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../store/useAuthStore';
 
+// Maksymalna długość nicku = liczba znaków w "ciasteczka_i_jednorozce".
+// Dozwolone znaki: litery, cyfry, "_" i "-".
+const USERNAME_MAX_LENGTH = 'ciasteczka_i_jednorozce'.length;
+const USERNAME_ALLOWED_CHARS = /[^a-zA-Z0-9_-]/g;
+
+function sanitizeUsername(text: string): string {
+  return text.replace(USERNAME_ALLOWED_CHARS, '').slice(0, USERNAME_MAX_LENGTH);
+}
+
 export default function OnboardingScreen() {
   const createProfile = useAuthStore((s) => s.createProfile);
   const uploadAvatar = useAuthStore((s) => s.uploadAvatar);
@@ -89,9 +98,14 @@ export default function OnboardingScreen() {
         placeholder="Nazwa użytkownika"
         placeholderTextColor="#B5AFA0"
         autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={USERNAME_MAX_LENGTH}
         value={username}
-        onChangeText={setUsername}
+        onChangeText={(text) => setUsername(sanitizeUsername(text))}
       />
+      <Text style={styles.hintText}>
+        Litery, cyfry, „_” i „-”, maks. {USERNAME_MAX_LENGTH} znaków.
+      </Text>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -133,6 +147,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorText: { color: '#E07A5F', marginBottom: 12, textAlign: 'center' },
+  hintText: { color: '#B5AFA0', fontSize: 11, marginBottom: 16, textAlign: 'center' },
   saveButton: { backgroundColor: '#4a7', borderRadius: 30, paddingVertical: 14, alignItems: 'center' },
   saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });

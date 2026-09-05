@@ -63,7 +63,13 @@ export function MovieDetailModal({
           ) : (
             <>
               {image ? <Image source={{ uri: image }} style={styles.poster} contentFit="cover" /> : null}
-              <ScrollView style={styles.textArea}>
+              <ScrollView
+                style={styles.textArea}
+                showsVerticalScrollIndicator
+                indicatorStyle="white"
+                persistentScrollbar
+                scrollIndicatorInsets={{ right: 1 }}
+              >
                 <Text style={styles.title}>
                   {title}
                   {year ? ` (${year})` : ''}

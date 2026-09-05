@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Avatar } from '../components/Avatar';
 import { useAuthStore } from '../store/useAuthStore';
 
 export default function AccountScreen() {
@@ -26,7 +27,7 @@ export default function AccountScreen() {
       />
       <View style={styles.overlay} />
 
-      <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
+      <TouchableOpacity onPress={() => router.back()} hitSlop={36} style={styles.backButton}>
         <Text style={styles.backArrow}>←</Text>
       </TouchableOpacity>
 
@@ -37,17 +38,9 @@ export default function AccountScreen() {
         <Text style={styles.settingsIcon}>⚙</Text>
       </Pressable>
 
-      <View style={styles.avatarWrapper}>
-        {profile?.avatar_url ? (
-          <Image source={{ uri: profile.avatar_url }} style={styles.avatar} contentFit="cover" />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarPlaceholderText}>
-              {(profile?.username ?? '?').slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
-        )}
-      </View>
+      <TouchableOpacity style={styles.avatarWrapper} onPress={() => router.push('/profile')}>
+        <Avatar url={profile?.avatar_url} size={110} fallbackLetter={profile?.username} />
+      </TouchableOpacity>
 
       <Text style={styles.username}>{profile?.username ?? '...'}</Text>
       <Text style={styles.email}>{session?.user.email}</Text>

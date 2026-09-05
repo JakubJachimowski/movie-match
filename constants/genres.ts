@@ -4,14 +4,14 @@ export interface Genre {
 }
 
 export const GENRES: Genre[] = [
-  { id: 28, name: 'Akcja' },
-  { id: 12, name: 'Przygodowy' },
-  { id: 35, name: 'Komedia' },
-  { id: 80, name: 'Kryminał' },
-  { id: 9648, name: 'Tajemnica' },
-  { id: 18, name: 'Dramat' },
-  { id: 14, name: 'Fantasy' },
-  { id: 27, name: 'Horror' },
-  { id: 10749, name: 'Romans' },
-  { id: 878, name: 'Sci-Fi' },
+  { id: 28, name: 'akcja' },
+  { id: 12, name: 'przygodowy' },
+  { id: 35, name: 'komedia' },
+  { id: 80, name: 'kryminał' },
+  { id: 9648, name: 'mystery' },
+  { id: 18, name: 'dramat' },
+  { id: 14, name: 'fantasy' },
+  { id: 27, name: 'horror' },
+  { id: 10749, name: 'romans' },
+  { id: 878, name: 'sci-fi' },
 ];

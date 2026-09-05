@@ -92,7 +92,7 @@ export default function ConnectionsScreen() {
       <View style={styles.overlay} />
 
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Połączenia</Text>

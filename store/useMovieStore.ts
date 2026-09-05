@@ -17,7 +17,10 @@ export interface GenreSettings {
   scoreMax: number;
   yearMin: number;
   yearMax: number;
-  country: string;
+  // Kraj pochodzenia — wielokrotny wybór (pusta lista = dowolny kraj).
+  countries: string[];
+  // Platformy VOD (identyfikatory dostawców TMDB) — wielokrotny wybór (pusta lista = dowolna).
+  providers: number[];
 }
 
 const DEFAULT_SETTINGS: GenreSettings = {
@@ -25,7 +28,8 @@ const DEFAULT_SETTINGS: GenreSettings = {
   scoreMax: 10,
   yearMin: 2000,
   yearMax: 2026,
-  country: '',
+  countries: [],
+  providers: [],
 };
 
 // Filtry gatunków (ocena/rok/kraj) zostają lokalne na urządzeniu — to preferencje
@@ -44,7 +48,9 @@ export const useMovieStore = create<MovieStore>()(
 
       getSettingsForGenre: (genreId) => {
         const { settings } = get();
-        return settings[genreId] || DEFAULT_SETTINGS;
+        // Spread na wypadek starszych zapisanych ustawień sprzed dodania
+        // pól countries/providers (wielokrotny wybór) — uzupełnia braki.
+        return { ...DEFAULT_SETTINGS, ...(settings[genreId] || {}) };
       },
 
       setSettingsForGenre: (genreId, newSettings) =>

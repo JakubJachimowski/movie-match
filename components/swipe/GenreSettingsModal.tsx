@@ -4,8 +4,9 @@ import { GenreSettings } from '../../store/useMovieStore';
 
 const SCORE_RANGE = Array.from({ length: 11 }, (_, i) => i);
 const YEAR_RANGE = Array.from({ length: 27 }, (_, i) => 2000 + i);
-const COUNTRY_OPTIONS = [
-  { code: '', label: 'Dowolny kraj' },
+
+// Kraje pochodzenia — wielokrotny wybór (bez pozycji "dowolny", brak wyboru = dowolny).
+export const COUNTRY_OPTIONS = [
   { code: 'US', label: 'USA' },
   { code: 'IN', label: 'Indie' },
   { code: 'CN', label: 'Chiny' },
@@ -19,14 +20,27 @@ const COUNTRY_OPTIONS = [
   { code: 'PL', label: 'Polska' },
 ];
 
-export { COUNTRY_OPTIONS };
+// Platformy VOD dostępne w Polsce — identyfikatory dostawców wg TMDB
+// (watch/providers, region PL). Lista skrócona do najpopularniejszych;
+// jeśli któryś id okaże się nieaktualny, TMDB po prostu nie zwróci wyników
+// dla tej platformy — do ewentualnej korekty po przetestowaniu na żywym API.
+export const PROVIDER_OPTIONS = [
+  { id: 8, label: 'Netflix' },
+  { id: 119, label: 'Prime Video' },
+  { id: 337, label: 'Disney+' },
+  { id: 1899, label: 'Max' },
+  { id: 350, label: 'Apple TV+' },
+  { id: 1773, label: 'SkyShowtime' },
+  { id: 531, label: 'Canal+' },
+];
 
 const RESET_SETTINGS: GenreSettings = {
   scoreMin: 1,
   scoreMax: 10,
   yearMin: 2000,
   yearMax: 2026,
-  country: '',
+  countries: [],
+  providers: [],
 };
 
 function CustomSelect({
@@ -35,20 +49,22 @@ function CustomSelect({
   displayValue,
   options,
   onSelect,
+  style,
 }: {
   label: string;
   value: number | string;
   displayValue: string;
   options: { value: number | string; label: string }[];
   onSelect: (v: any) => void;
+  style?: any;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <View style={{ marginTop: 12 }}>
+    <View style={[{ marginTop: 12 }, style]}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity style={styles.selectBox} onPress={() => setOpen(true)}>
-        <Text style={styles.selectBoxText}>{displayValue}</Text>
+        <Text style={styles.selectBoxText} numberOfLines={1}>{displayValue}</Text>
         <Text style={styles.selectBoxArrow}>▾</Text>
       </TouchableOpacity>
 
@@ -76,6 +92,39 @@ function CustomSelect({
   );
 }
 
+// Pole wielokrotnego wyboru w formie "chipów" — brak zaznaczonych pozycji = dowolna.
+function MultiChipField({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: { key: string; label: string }[];
+  selected: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <View style={{ marginTop: 12 }}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.chipWrap}>
+        {options.map((opt) => {
+          const active = selected.includes(opt.key);
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => onToggle(opt.key)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 interface GenreSettingsModalProps {
   visible: boolean;
   genreName: string;
@@ -97,59 +146,85 @@ export function GenreSettingsModal({
   const scoreMaxOptions = SCORE_RANGE.filter((v) => v >= draftSettings.scoreMin).map((v) => ({ value: v, label: String(v) }));
   const yearMinOptions = YEAR_RANGE.filter((v) => v <= draftSettings.yearMax).map((v) => ({ value: v, label: String(v) }));
   const yearMaxOptions = YEAR_RANGE.filter((v) => v >= draftSettings.yearMin).map((v) => ({ value: v, label: String(v) }));
-  const countryOptions = COUNTRY_OPTIONS.map((c) => ({ value: c.code, label: c.label }));
-  const countryLabel = COUNTRY_OPTIONS.find((c) => c.code === draftSettings.country)?.label ?? 'Dowolny kraj';
+
+  const toggleCountry = (code: string) =>
+    setDraftSettings((s) => ({
+      ...s,
+      countries: s.countries.includes(code) ? s.countries.filter((c) => c !== code) : [...s.countries, code],
+    }));
+
+  const toggleProvider = (idStr: string) => {
+    const id = Number(idStr);
+    setDraftSettings((s) => ({
+      ...s,
+      providers: s.providers.includes(id) ? s.providers.filter((p) => p !== id) : [...s.providers, id],
+    }));
+  };
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
       <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
           <View style={styles.titleRow}>
-            <Text style={styles.modalTitle}>Ustawienia — {genreName}</Text>
+            <Text style={styles.modalTitle}>Filtry</Text>
             <TouchableOpacity style={styles.resetButton} onPress={() => setDraftSettings(RESET_SETTINGS)}>
               <Text style={styles.resetButtonText}>Reset</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView>
-            <CustomSelect
-              label="Ocena użytkowników — od"
-              value={draftSettings.scoreMin}
-              displayValue={String(draftSettings.scoreMin)}
-              options={scoreMinOptions}
-              onSelect={(v) => setDraftSettings((s) => ({ ...s, scoreMin: v }))}
+            <Text style={styles.sectionLabel}>Ocena użytkowników</Text>
+            <View style={styles.rangeRow}>
+              <CustomSelect
+                label="od"
+                value={draftSettings.scoreMin}
+                displayValue={String(draftSettings.scoreMin)}
+                options={scoreMinOptions}
+                onSelect={(v) => setDraftSettings((s) => ({ ...s, scoreMin: v }))}
+                style={styles.rangeField}
+              />
+              <CustomSelect
+                label="do"
+                value={draftSettings.scoreMax}
+                displayValue={String(draftSettings.scoreMax)}
+                options={scoreMaxOptions}
+                onSelect={(v) => setDraftSettings((s) => ({ ...s, scoreMax: v }))}
+                style={styles.rangeField}
+              />
+            </View>
+
+            <Text style={styles.sectionLabel}>Rok produkcji</Text>
+            <View style={styles.rangeRow}>
+              <CustomSelect
+                label="od"
+                value={draftSettings.yearMin}
+                displayValue={String(draftSettings.yearMin)}
+                options={yearMinOptions}
+                onSelect={(v) => setDraftSettings((s) => ({ ...s, yearMin: v }))}
+                style={styles.rangeField}
+              />
+              <CustomSelect
+                label="do"
+                value={draftSettings.yearMax}
+                displayValue={String(draftSettings.yearMax)}
+                options={yearMaxOptions}
+                onSelect={(v) => setDraftSettings((s) => ({ ...s, yearMax: v }))}
+                style={styles.rangeField}
+              />
+            </View>
+
+            <MultiChipField
+              label="Kraj pochodzenia"
+              options={COUNTRY_OPTIONS.map((c) => ({ key: c.code, label: c.label }))}
+              selected={draftSettings.countries}
+              onToggle={toggleCountry}
             />
 
-            <CustomSelect
-              label="Ocena użytkowników — do"
-              value={draftSettings.scoreMax}
-              displayValue={String(draftSettings.scoreMax)}
-              options={scoreMaxOptions}
-              onSelect={(v) => setDraftSettings((s) => ({ ...s, scoreMax: v }))}
-            />
-
-            <CustomSelect
-              label="Rok produkcji — od"
-              value={draftSettings.yearMin}
-              displayValue={String(draftSettings.yearMin)}
-              options={yearMinOptions}
-              onSelect={(v) => setDraftSettings((s) => ({ ...s, yearMin: v }))}
-            />
-
-            <CustomSelect
-              label="Rok produkcji — do"
-              value={draftSettings.yearMax}
-              displayValue={String(draftSettings.yearMax)}
-              options={yearMaxOptions}
-              onSelect={(v) => setDraftSettings((s) => ({ ...s, yearMax: v }))}
-            />
-
-            <CustomSelect
-              label="Kraj produkcji"
-              value={draftSettings.country}
-              displayValue={countryLabel}
-              options={countryOptions}
-              onSelect={(v) => setDraftSettings((s) => ({ ...s, country: v }))}
+            <MultiChipField
+              label="Dostępne na (VOD)"
+              options={PROVIDER_OPTIONS.map((p) => ({ key: String(p.id), label: p.label }))}
+              selected={draftSettings.providers.map(String)}
+              onToggle={toggleProvider}
             />
           </ScrollView>
 
@@ -180,7 +255,11 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   resetButtonText: { color: '#E8E4D9', fontSize: 12, fontWeight: 'bold' },
+  sectionLabel: { color: '#B5AFA0', fontSize: 12, fontWeight: 'bold', marginTop: 16, textTransform: 'uppercase' },
   label: { color: '#E8E4D9', fontSize: 14, marginBottom: 4 },
+
+  rangeRow: { flexDirection: 'row' },
+  rangeField: { flex: 1, marginRight: 10 },
 
   selectBox: {
     backgroundColor: '#26251F',
@@ -193,7 +272,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  selectBoxText: { color: '#E8E4D9', fontSize: 15 },
+  selectBoxText: { color: '#E8E4D9', fontSize: 15, flex: 1, marginRight: 6 },
   selectBoxArrow: { color: '#B5AFA0', fontSize: 14 },
 
   selectOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 30 },
@@ -208,6 +287,21 @@ const styles = StyleSheet.create({
   selectItem: { paddingVertical: 14, paddingHorizontal: 20 },
   selectItemActive: { backgroundColor: '#333' },
   selectItemText: { color: '#E8E4D9', fontSize: 16 },
+
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap' },
+  chip: {
+    backgroundColor: '#26251F',
+    borderWidth: 0.5,
+    borderColor: '#B5AFA0',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipActive: { backgroundColor: '#4a7', borderColor: '#4a7' },
+  chipText: { color: '#B5AFA0', fontSize: 13, fontWeight: 'bold' },
+  chipTextActive: { color: '#12211A' },
 
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
   cancelButton: { backgroundColor: '#555', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 30 },

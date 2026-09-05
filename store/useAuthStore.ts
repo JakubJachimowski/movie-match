@@ -3,11 +3,20 @@ import { create } from 'zustand';
 import { setRememberMe } from '../lib/authStorage';
 import { supabase } from '../lib/supabase';
 
+export interface FavoriteMovie {
+  id: string;
+  title: string;
+  image: string | null;
+  year: string | null;
+}
+
 export interface Profile {
   id: string;
   username: string;
   avatar_url: string | null;
   created_at: string;
+  favorite_genres: number[];
+  favorite_movies: FavoriteMovie[];
 }
 
 interface AuthStore {
@@ -22,6 +31,7 @@ interface AuthStore {
   refreshProfile: () => Promise<void>;
   createProfile: (username: string, avatarUrl?: string | null) => Promise<void>;
   uploadAvatar: (localUri: string) => Promise<string>;
+  updateProfile: (fields: Partial<Pick<Profile, 'avatar_url' | 'favorite_genres' | 'favorite_movies'>>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()((set, get) => ({
@@ -86,6 +96,14 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
 
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     return `${data.publicUrl}?t=${Date.now()}`;
+  },
+
+  updateProfile: async (fields) => {
+    const userId = get().session?.user.id;
+    if (!userId) throw new Error('Brak zalogowanego użytkownika.');
+    const { data, error } = await supabase.from('profiles').update(fields).eq('id', userId).select().single();
+    if (error) throw error;
+    set({ profile: data as Profile });
   },
 }));
 

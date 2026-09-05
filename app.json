@@ -13,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.jachimowski.moviematch",
       "backgroundColor": "#26251F",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

@@ -1,6 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+
+const ACTIVE_CONNECTION_KEY = 'movieMatch.activeConnectionId';
 
 export interface Partner {
   connectionId: string;
@@ -24,6 +27,7 @@ interface ConnectionsStore {
   createInvite: () => Promise<PendingInvite>;
   acceptInvite: (code: string) => Promise<void>;
   setActiveConnection: (connectionId: string) => void;
+  removeConnection: (connectionId: string) => Promise<void>;
 }
 
 export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
@@ -70,8 +74,18 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
         };
       });
 
-      const currentActive = get().activeConnectionId;
+      // Zapamiętany wybór aktywnego znajomego przetrwa restart appki — jeśli w
+      // stanie nic jeszcze nie ma, sięgamy po to, co zostało zapisane na dysku.
+      let currentActive = get().activeConnectionId;
+      if (!currentActive) {
+        try {
+          currentActive = await AsyncStorage.getItem(ACTIVE_CONNECTION_KEY);
+        } catch {
+          currentActive = null;
+        }
+      }
       const activeStillValid = currentActive && partners.some((p) => p.connectionId === currentActive);
+      const nextActive = activeStillValid ? currentActive : partners[0]?.connectionId ?? null;
 
       set({
         partners,
@@ -79,8 +93,14 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
           myPending && myPending.invite_code && myPending.expires_at
             ? { code: myPending.invite_code, expiresAt: myPending.expires_at }
             : null,
-        activeConnectionId: activeStillValid ? currentActive : partners[0]?.connectionId ?? null,
+        activeConnectionId: nextActive,
       });
+
+      if (nextActive) {
+        AsyncStorage.setItem(ACTIVE_CONNECTION_KEY, nextActive).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(ACTIVE_CONNECTION_KEY).catch(() => {});
+      }
     } finally {
       set({ loading: false });
     }
@@ -101,5 +121,27 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
     await get().fetchConnections();
   },
 
-  setActiveConnection: (connectionId: string) => set({ activeConnectionId: connectionId }),
+  setActiveConnection: (connectionId: string) => {
+    set({ activeConnectionId: connectionId });
+    AsyncStorage.setItem(ACTIVE_CONNECTION_KEY, connectionId).catch(() => {});
+  },
+
+  removeConnection: async (connectionId: string) => {
+    const { error } = await supabase.from('connections').delete().eq('id', connectionId);
+    if (error) throw error;
+
+    const wasActive = get().activeConnectionId === connectionId;
+    set((state) => ({
+      partners: state.partners.filter((p) => p.connectionId !== connectionId),
+      activeConnectionId: wasActive ? null : state.activeConnectionId,
+    }));
+
+    if (wasActive) {
+      AsyncStorage.removeItem(ACTIVE_CONNECTION_KEY).catch(() => {});
+      const fallback = get().partners[0]?.connectionId;
+      if (fallback) {
+        get().setActiveConnection(fallback);
+      }
+    }
+  },
 }));
