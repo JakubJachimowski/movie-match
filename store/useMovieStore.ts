@@ -39,12 +39,17 @@ interface MovieStore {
   settings: Record<number, GenreSettings>;
   getSettingsForGenre: (genreId: number) => GenreSettings;
   setSettingsForGenre: (genreId: number, settings: GenreSettings) => void;
+  // Ostatnio wybrany gatunek na ekranie głównym — przetrwa restart appki, żeby
+  // po ponownym otwarciu nie trzeba było wybierać go od nowa za każdym razem.
+  lastGenreId: number | null;
+  setLastGenreId: (genreId: number) => void;
 }
 
 export const useMovieStore = create<MovieStore>()(
   persist(
     (set, get) => ({
       settings: {},
+      lastGenreId: null,
 
       getSettingsForGenre: (genreId) => {
         const { settings } = get();
@@ -57,6 +62,8 @@ export const useMovieStore = create<MovieStore>()(
         set((state) => ({
           settings: { ...state.settings, [genreId]: newSettings },
         })),
+
+      setLastGenreId: (genreId) => set({ lastGenreId: genreId }),
     }),
     {
       name: 'movie-store',

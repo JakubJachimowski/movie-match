@@ -22,6 +22,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useConnectionsStore } from '../../store/useConnectionsStore';
 import { useMatchesStore } from '../../store/useMatchesStore';
 import { useMatchNotificationStore } from '../../store/useMatchNotificationStore';
+import { useMovieStore } from '../../store/useMovieStore';
 
 const GRID_COLUMNS = 2;
 // +20% względem oryginalnych 80px.
@@ -178,9 +179,44 @@ export default function Home() {
   const ownFloatY = useFloatAnimation(`own-${floatResetKey}`);
   const friendFloatY = useFloatAnimation(`friend-${floatResetKey}`);
 
+  const lastGenreId = useMovieStore((s) => s.lastGenreId);
+  const setLastGenreId = useMovieStore((s) => s.setLastGenreId);
+
   const [genreIndex, setGenreIndex] = useState(0);
   const [gridVisible, setGridVisible] = useState(false);
   const currentGenre = GENRES[genreIndex];
+
+  // Ostatnio wybrany gatunek ma przetrwać restart appki. useMovieStore
+  // rehydratuje się z AsyncStorage asynchronicznie, więc przy pierwszym
+  // renderze `lastGenreId` bywa jeszcze `null` mimo zapisanej wartości na
+  // dysku — czekamy na zakończenie hydracji, zanim zdecydujemy, czy jest co
+  // zastosować. Dopiero PO tej jednorazowej decyzji zaczynamy sami zapisywać
+  // zmiany gatunku, żeby nie nadpisać zapamiętanego wyboru domyślnym (0),
+  // zanim hydracja zdąży się zakończyć.
+  const [movieStoreHydrated, setMovieStoreHydrated] = useState(() => useMovieStore.persist.hasHydrated());
+  useEffect(() => {
+    if (movieStoreHydrated) return;
+    if (useMovieStore.persist.hasHydrated()) {
+      setMovieStoreHydrated(true);
+      return;
+    }
+    return useMovieStore.persist.onFinishHydration(() => setMovieStoreHydrated(true));
+  }, [movieStoreHydrated]);
+
+  const appliedLastGenreRef = useRef(false);
+  useEffect(() => {
+    if (!movieStoreHydrated || appliedLastGenreRef.current) return;
+    appliedLastGenreRef.current = true;
+    if (lastGenreId != null) {
+      const idx = GENRES.findIndex((g) => g.id === lastGenreId);
+      if (idx !== -1) setGenreIndex(idx);
+    }
+  }, [movieStoreHydrated, lastGenreId]);
+
+  useEffect(() => {
+    if (!appliedLastGenreRef.current) return;
+    setLastGenreId(currentGenre.id);
+  }, [currentGenre.id, setLastGenreId]);
 
   // Zmierz szerokość każdej nazwy gatunku raz (niewidocznie), żeby ustalić stałą
   // szerokość przycisku = szerokość najdłuższego wariantu + padding.

@@ -85,7 +85,19 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
         }
       }
       const activeStillValid = currentActive && partners.some((p) => p.connectionId === currentActive);
-      const nextActive = activeStillValid ? currentActive : partners[0]?.connectionId ?? null;
+      // Gdy zapamiętany znajomy nie występuje w TYM konkretnym wyniku zapytania,
+      // a lista partnerów przyszła PUSTA (0 wyników) — to zwykle chwilowy problem
+      // sieci/timing przy odświeżaniu sesji, a nie realny brak znajomych. W takim
+      // wypadku NIE nadpisujemy zapamiętanego wyboru pierwszym z brzegu (i tak
+      // pustym) wynikiem — zostawiamy poprzednią wartość, żeby kolejny, udany
+      // fetch mógł ją poprawnie zwalidować. To właśnie ten przypadek dawał
+      // wrażenie, że apka "czasem" wybiera pierwszego sparowanego zamiast
+      // ostatnio używanego: fałszywie pusty odczyt trwale kasował zapamiętany wybór.
+      const nextActive = activeStillValid
+        ? currentActive
+        : partners.length > 0
+          ? (partners[0]?.connectionId ?? null)
+          : (currentActive ?? null);
 
       set({
         partners,
@@ -98,7 +110,9 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
 
       if (nextActive) {
         AsyncStorage.setItem(ACTIVE_CONNECTION_KEY, nextActive).catch(() => {});
-      } else {
+      } else if (partners.length > 0) {
+        // Kasujemy zapis tylko wtedy, gdy naprawdę wiemy (niepusta lista), że
+        // zapamiętany znajomy już nie istnieje — nigdy przy pustym/niepewnym wyniku.
         AsyncStorage.removeItem(ACTIVE_CONNECTION_KEY).catch(() => {});
       }
     } finally {

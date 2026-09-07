@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GenreSettingsModal, COUNTRY_OPTIONS, PROVIDER_OPTIONS } from '../components/swipe/GenreSettingsModal';
 import { MatchPopup } from '../components/swipe/MatchPopup';
@@ -16,7 +16,7 @@ import { useConnectionsStore } from '../store/useConnectionsStore';
 import { useDecisionsStore } from '../store/useDecisionsStore';
 import { useMatchesStore } from '../store/useMatchesStore';
 import { useMatchNotificationStore } from '../store/useMatchNotificationStore';
-import { GenreSettings, useMovieStore } from '../store/useMovieStore';
+import { GenreSettings, Movie, useMovieStore } from '../store/useMovieStore';
 
 const MAX_UNDOS_PER_SWIPE = 5;
 const EDGE_SPACING = 20;
@@ -46,6 +46,11 @@ export default function Swipe() {
   const [runtimeCache, setRuntimeCache] = useState<Record<string, number | null>>({});
   const [providersCache, setProvidersCache] = useState<Record<string, WatchProvider[] | null>>({});
   const [matchPopup, setMatchPopup] = useState<MatchPayload | null>(null);
+  // Karta widoczna TUŻ PRZED cofnięciem — trzymana osobno, żeby przez czas
+  // trwania jej animacji wyjazdu (patrz animateUndoReturn) dało się ją nadal
+  // wyrenderować z własnymi (starymi) danymi filmu, mimo że deck.currentMovie
+  // już wskazuje na kartę cofniętą.
+  const [outgoingMovie, setOutgoingMovie] = useState<Movie | null>(null);
 
   const lastSwipeDirectionRef = useRef<'left' | 'right' | null>(null);
   // Zapamiętuje, kiedy TEN użytkownik ostatnio przesunął dany film w prawo —
@@ -124,6 +129,11 @@ export default function Swipe() {
     onHandlerStateChange,
     animateEntrance,
     animateUndoReturn,
+    leavingCardTranslateX,
+    leavingCardTranslateY,
+    leavingRotateInterpolate,
+    leavingTintEnabled,
+    leavingOpacity,
   } = useCardSwipeAnimation({
       areaSize,
       cardHeight,
@@ -178,10 +188,18 @@ export default function Swipe() {
       .getState()
       .undoLastDecision(activeConnectionId, userId)
       .catch((e) => console.warn('undoLastDecision error', e));
+
+    // Karta obecnie widoczna ma "wyjechać" (patrz animateUndoReturn) —
+    // zapamiętujemy jej dane TERAZ, zanim deck.goBack() przełączy
+    // currentMovie na kartę cofaną, żeby dało się ją wyrenderować osobno
+    // przez czas trwania tej animacji.
+    if (currentMovie) {
+      setOutgoingMovie(currentMovie);
+    }
     deck.goBack();
     setUndosLeft((u) => u - 1);
 
-    animateUndoReturn(dir);
+    animateUndoReturn(dir, () => setOutgoingMovie(null));
   };
 
   const handleMatchButtonPress = async () => {
@@ -336,6 +354,41 @@ export default function Swipe() {
             )}
 
             {areaSize && noMoviesAvailable && <EmptyMovieCard cardWidth={cardWidth} cardHeight={cardHeight} />}
+
+            {/* Druga, "wyjeżdżająca" warstwa karty — używana przy cofnięciu
+                (patrz animateUndoReturn). Renderowana jest PRZEZ CAŁY CZAS
+                (nie tylko w trakcie cofania) i nieklikalna — nowe
+                zamontowanie widoku (zwłaszcza z obrazkiem plakatu) w samej
+                chwili naciśnięcia "Cofnij" kosztowało dodatkową klatkę czy
+                dwie, zanim faktycznie coś się na nim wyrenderowało, co
+                dawało wrażenie krótkiego mignięcia/zniknięcia karty.
+                Trzymając ją cały czas "rozgrzaną" — z obrazkiem tej samej
+                karty, którą i tak właśnie widać na głównej karcie — jej
+                pojawienie się przy cofnięciu to już tylko zmiana opacity i
+                pozycji na istniejącym widoku, bez kosztu ponownego
+                montowania. Widoczność (leavingOpacity) jest sterowana
+                WYŁĄCZNIE z hooka, wartością Animated (Animated.View), a nie
+                stylem przeliczanym przy każdym renderze tego ekranu — patrz
+                komentarz przy leavingOpacity w useCardSwipeAnimation.ts. */}
+            {areaSize && (outgoingMovie ?? currentMovie) && (
+              <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+                <Animated.View style={[styles.outgoingCardLayer, { opacity: leavingOpacity }]}>
+                  <MovieCard
+                    movie={(outgoingMovie ?? currentMovie)!}
+                    cardWidth={cardWidth}
+                    cardHeight={cardHeight}
+                    runtime={runtimeCache[(outgoingMovie ?? currentMovie)!.id]}
+                    providers={providersCache[(outgoingMovie ?? currentMovie)!.id]}
+                    cardTranslateX={leavingCardTranslateX}
+                    cardTranslateY={leavingCardTranslateY}
+                    rotateInterpolate={leavingRotateInterpolate}
+                    tintEnabled={leavingTintEnabled}
+                    onGestureEvent={() => {}}
+                    onHandlerStateChange={() => {}}
+                  />
+                </Animated.View>
+              </View>
+            )}
           </>
         )}
       </View>
@@ -430,6 +483,10 @@ const styles = StyleSheet.create({
   // zachowuje się "za darmo" dzięki temu, że występuje w JSX PO cardArea.
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 0, elevation: 0 },
   aboveCard: { zIndex: 10, elevation: 10 },
+  // Wyśrodkowanie karty "wyjeżdżającej" (patrz outgoingMovie) dokładnie w tym
+  // samym miejscu co karta główna, mimo że leży w osobnej, bezwzględnie
+  // pozycjonowanej warstwie ponad nią.
+  outgoingCardLayer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   card: {
     borderRadius: 20,

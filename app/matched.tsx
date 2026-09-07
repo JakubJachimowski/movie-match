@@ -90,8 +90,8 @@ const ORDER_OPTIONS: { key: OrderMode; label: string }[] = [
 ];
 
 const WATCH_OPTIONS: { key: Exclude<WatchFilter, 'all'>; label: string }[] = [
-  { key: 'watched', label: 'Obejrzane' },
   { key: 'unwatched', label: 'Nieobejrzane' },
+  { key: 'watched', label: 'Obejrzane' },
 ];
 
 export default function MatchedScreen() {
@@ -126,7 +126,9 @@ export default function MatchedScreen() {
   }, [activeConnectionId, myId, contentLoading, prefetchMatches]);
 
   const [orderMode, setOrderMode] = useState<OrderMode>('newest');
-  const [watchFilter, setWatchFilter] = useState<WatchFilter>('all');
+  // Domyślnie aktywny filtr "Nieobejrzane" — ekran ma zawsze startować z
+  // najnowszymi i nieobejrzanymi filmami widocznymi jako pierwsze.
+  const [watchFilter, setWatchFilter] = useState<WatchFilter>('unwatched');
   const [deleteMatchTarget, setDeleteMatchTarget] = useState<MatchRow | null>(null);
   const [deletingMatch, setDeletingMatch] = useState(false);
   // Zmierzona szerokość rzędu z ocenami — przyciski ocen skalują się tak, by
@@ -595,6 +597,7 @@ const styles = StyleSheet.create({
   topBarPartnerBlock: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
   topBarPartner: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold', marginLeft: 10, flexShrink: 1 },
   changeFriendButton: {
+    backgroundColor: '#141A24',
     borderWidth: 1,
     borderColor: '#7C8798',
     borderRadius: 14,
@@ -615,6 +618,7 @@ const styles = StyleSheet.create({
   sortDivider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: '#7C8798', opacity: 0.5 },
   sortChip: {
     height: 44,
+    backgroundColor: '#141A24',
     borderWidth: 1,
     borderColor: '#3A382F',
     borderRadius: 22,
