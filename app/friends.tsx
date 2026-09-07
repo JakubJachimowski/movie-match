@@ -36,7 +36,7 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -52,7 +52,7 @@ export default function FriendsScreen() {
 
       <View style={styles.content}>
         {loading && partners.length === 0 ? (
-          <ActivityIndicator color="#E8E4D9" style={{ marginTop: 24 }} />
+          <ActivityIndicator color="#ECEEF2" style={{ marginTop: 24 }} />
         ) : partners.length === 0 ? (
           <Text style={styles.emptyText}>
             Nie masz jeszcze żadnego znajomego. Wygeneruj kod zaproszenia albo dołącz do kogoś cudzym kodem w
@@ -68,7 +68,7 @@ export default function FriendsScreen() {
                   style={styles.mainPanel}
                   onPress={() =>
                     router.push({
-                      pathname: '/friend-history/[connectionId]',
+                      pathname: '/friend-profile/[connectionId]',
                       params: {
                         connectionId: p.connectionId,
                         partnerId: p.partnerId,
@@ -118,7 +118,7 @@ export default function FriendsScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setDeleteTarget(null)}>
           <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
             <Image
-              source={require('../assets/images/moviematchbackground.png')}
+              source={require('../assets/images/moviematchbackground7.png')}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
@@ -154,8 +154,8 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,11 +164,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
-  headerTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
+  headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
 
   content: { padding: 20 },
-  emptyText: { color: '#B5AFA0', fontSize: 14, lineHeight: 20 },
+  emptyText: { color: '#7C8798', fontSize: 14, lineHeight: 20 },
 
   // Trzy oddzielne panele w jednym wierszu: avatar+nick / wybierz-aktywny / usuń.
   // Razem zajmują tyle samo miejsca, co dawny pojedynczy, ciągły wiersz.
@@ -182,25 +182,25 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 14,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     padding: 10,
   },
-  partnerName: { color: '#E8E4D9', fontSize: 15, flex: 1 },
+  partnerName: { color: '#ECEEF2', fontSize: 15, flex: 1 },
 
   choicePanel: {
     borderWidth: 1,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 14,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   choicePanelActive: { backgroundColor: '#4a7', borderColor: '#4a7' },
-  choicePanelText: { color: '#B5AFA0', fontSize: 11, fontWeight: 'bold' },
+  choicePanelText: { color: '#7C8798', fontSize: 11, fontWeight: 'bold' },
   choicePanelTextActive: { color: '#12211A' },
 
   deletePanel: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#E07A5F',
     borderRadius: 14,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -219,11 +219,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: 24,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
   },
   modalOverlayTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(30,29,24,0.88)' },
-  modalTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  modalMessage: { color: '#B5AFA0', fontSize: 14, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  modalTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  modalMessage: { color: '#7C8798', fontSize: 14, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
   modalCancelButton: {
     flex: 1,

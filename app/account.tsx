@@ -21,7 +21,7 @@ export default function AccountScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -70,7 +70,7 @@ export default function AccountScreen() {
         >
           <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
             <Image
-              source={require('../assets/images/moviematchbackground.png')}
+              source={require('../assets/images/moviematchbackground7.png')}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
@@ -95,10 +95,10 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F', alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17', alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
   backButton: { position: 'absolute', top: 56, left: 20, zIndex: 1 },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
   settingsButton: {
     position: 'absolute',
     top: 32,
@@ -112,13 +112,13 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   settingsButtonPressed: { backgroundColor: 'rgba(0,0,0,0.75)' },
-  settingsIcon: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
+  settingsIcon: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
   avatarWrapper: { marginBottom: 16 },
-  avatar: { width: 110, height: 110, borderRadius: 55, borderWidth: 0.5, borderColor: '#B5AFA0' },
-  avatarPlaceholder: { backgroundColor: '#1E1D18', alignItems: 'center', justifyContent: 'center' },
-  avatarPlaceholderText: { color: '#E8E4D9', fontSize: 36, fontWeight: 'bold' },
-  username: { color: '#E8E4D9', fontSize: 22, fontWeight: 'bold' },
-  email: { color: '#B5AFA0', fontSize: 14, marginTop: 4, marginBottom: 32 },
+  avatar: { width: 110, height: 110, borderRadius: 55, borderWidth: 0.5, borderColor: '#7C8798' },
+  avatarPlaceholder: { backgroundColor: '#141A24', alignItems: 'center', justifyContent: 'center' },
+  avatarPlaceholderText: { color: '#ECEEF2', fontSize: 36, fontWeight: 'bold' },
+  username: { color: '#ECEEF2', fontSize: 22, fontWeight: 'bold' },
+  email: { color: '#7C8798', fontSize: 14, marginTop: 4, marginBottom: 32 },
   connectionsButton: {
     backgroundColor: '#333',
     borderRadius: 30,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  connectionsButtonText: { color: '#E8E4D9', fontWeight: 'bold' },
+  connectionsButtonText: { color: '#ECEEF2', fontWeight: 'bold' },
   signOutButton: {
     borderWidth: 0.5,
     borderColor: '#E07A5F',
@@ -146,11 +146,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: 24,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
   },
   modalOverlayTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(30,29,24,0.88)' },
-  modalTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  modalMessage: { color: '#B5AFA0', fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  modalTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  modalMessage: { color: '#7C8798', fontSize: 14, textAlign: 'center', marginBottom: 20 },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
   modalCancelButton: {
     flex: 1,

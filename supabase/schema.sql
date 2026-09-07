@@ -352,6 +352,157 @@ create policy matches_select_members
     )
   );
 
+-- Usuwanie dopasowania (czerwony krzyżyk na kafelku na ekranie "Wspólnie
+-- polubione") — każda ze stron połączenia może je usunąć.
+drop policy if exists matches_delete_members on public.matches;
+create policy matches_delete_members
+  on public.matches for delete
+  using (
+    connection_id in (
+      select id from public.connections
+      where status = 'accepted' and (user_a = auth.uid() or user_b = auth.uid())
+    )
+  );
+
+grant delete on public.matches to authenticated;
+
+-- =========================================================
+-- 8c. NOTIFICATIONS (nowy match / ocena znajomego / nowa znajomość)
+-- =========================================================
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  connection_id uuid references public.connections (id) on delete cascade,
+  type text not null check (type in ('match', 'rating', 'friend')),
+  title text not null,
+  body text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_created_idx
+  on public.notifications (user_id, created_at desc);
+
+alter table public.notifications enable row level security;
+
+drop policy if exists notifications_select_own on public.notifications;
+create policy notifications_select_own
+  on public.notifications for select
+  using (user_id = auth.uid());
+
+drop policy if exists notifications_update_own on public.notifications;
+create policy notifications_update_own
+  on public.notifications for update
+  using (user_id = auth.uid());
+
+grant select, update on public.notifications to authenticated;
+
+-- Nowe dopasowanie — powiadomienie dla obu stron połączenia.
+create or replace function public.notify_new_match()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_a uuid;
+  v_user_b uuid;
+begin
+  select user_a, user_b into v_user_a, v_user_b from public.connections where id = new.connection_id;
+
+  if v_user_a is not null then
+    insert into public.notifications (user_id, connection_id, type, title, body)
+    values (v_user_a, new.connection_id, 'match', 'Nowe dopasowanie!', new.title);
+  end if;
+  if v_user_b is not null then
+    insert into public.notifications (user_id, connection_id, type, title, body)
+    values (v_user_b, new.connection_id, 'match', 'Nowe dopasowanie!', new.title);
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_match on public.matches;
+create trigger trg_notify_new_match
+  after insert on public.matches
+  for each row execute function public.notify_new_match();
+
+-- Znajomy wystawił ocenę filmu — powiadomienie dla DRUGIEJ strony połączenia
+-- (nie dla oceniającego), tylko gdy faktycznie ustawiono ocenę (user_score).
+create or replace function public.notify_new_rating()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_connection_id uuid;
+  v_user_a uuid;
+  v_user_b uuid;
+  v_recipient uuid;
+  v_rater_username text;
+  v_title text;
+begin
+  if new.user_score is null or (tg_op = 'UPDATE' and old.user_score is not distinct from new.user_score) then
+    return new;
+  end if;
+
+  select m.connection_id, m.title into v_connection_id, v_title from public.matches m where m.id = new.match_id;
+  select c.user_a, c.user_b into v_user_a, v_user_b from public.connections c where c.id = v_connection_id;
+  v_recipient := case when new.user_id = v_user_a then v_user_b else v_user_a end;
+  select username into v_rater_username from public.profiles where id = new.user_id;
+
+  if v_recipient is not null then
+    insert into public.notifications (user_id, connection_id, type, title, body)
+    values (v_recipient, v_connection_id, 'rating', coalesce(v_rater_username, 'Znajomy') || ' ocenił(a) film',
+            v_title || ' — ' || new.user_score || '/10');
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_rating on public.match_ratings;
+create trigger trg_notify_new_rating
+  after insert or update on public.match_ratings
+  for each row execute function public.notify_new_rating();
+
+-- Nowa znajomość (kod zaproszenia zaakceptowany) — powiadomienie dla obu stron.
+create or replace function public.notify_new_friend()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_username_a text;
+  v_username_b text;
+begin
+  if new.status <> 'accepted' or (tg_op = 'UPDATE' and old.status = 'accepted') then
+    return new;
+  end if;
+  if new.user_b is null then
+    return new;
+  end if;
+
+  select username into v_username_a from public.profiles where id = new.user_a;
+  select username into v_username_b from public.profiles where id = new.user_b;
+
+  insert into public.notifications (user_id, connection_id, type, title, body)
+  values (new.user_a, new.id, 'friend', 'Nowy znajomy', coalesce(v_username_b, 'Ktoś') || ' jest teraz Twoim znajomym');
+  insert into public.notifications (user_id, connection_id, type, title, body)
+  values (new.user_b, new.id, 'friend', 'Nowy znajomy', coalesce(v_username_a, 'Ktoś') || ' jest teraz Twoim znajomym');
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_friend on public.connections;
+create trigger trg_notify_new_friend
+  after insert or update on public.connections
+  for each row execute function public.notify_new_friend();
+
 -- =========================================================
 -- 8b. REALTIME — powiadomienia o nowych dopasowaniach na żywo w apce
 -- =========================================================

@@ -1,12 +1,31 @@
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
-// Avatar może być albo prawdziwym URL-em zdjęcia (Supabase Storage), albo jednym
-// z 5 placeholderowych kolorów zapisanym jako "color:#RRGGBB" — to rozróżnienie
-// trzyma się w jednym miejscu, żeby każdy ekran renderował avatar tak samo.
+// Avatar może być: prawdziwym URL-em zdjęcia (Supabase Storage), jednym z 5
+// gotowych avatarów wbudowanych w aplikację (zapisany jako "asset:N") albo
+// (starsze konta) jednym z 5 placeholderowych kolorów ("color:#RRGGBB") — to
+// rozróżnienie trzyma się w jednym miejscu, żeby każdy ekran renderował avatar
+// tak samo.
 export const AVATAR_COLOR_PREFIX = 'color:';
+export const AVATAR_ASSET_PREFIX = 'asset:';
 
 export const AVATAR_COLOR_OPTIONS = ['#E07A5F', '#4AA785', '#E8A33D', '#5B7DB1', '#9B6BB3'];
+
+// require() musi dostać statyczny literał — stąd mapa 1..5 zamiast dynamicznego
+// ścieżkowania po numerze.
+const AVATAR_ASSET_SOURCES: Record<string, ReturnType<typeof require>> = {
+  '1': require('../assets/avatars/avatar_1.png'),
+  '2': require('../assets/avatars/avatar_2.png'),
+  '3': require('../assets/avatars/avatar_3.png'),
+  '4': require('../assets/avatars/avatar_4.png'),
+  '5': require('../assets/avatars/avatar_5.png'),
+};
+
+export const AVATAR_ASSET_OPTIONS = Object.keys(AVATAR_ASSET_SOURCES).map((id) => ({
+  id,
+  value: `${AVATAR_ASSET_PREFIX}${id}`,
+  source: AVATAR_ASSET_SOURCES[id],
+}));
 
 export function isColorAvatar(url: string | null | undefined): url is string {
   return !!url && url.startsWith(AVATAR_COLOR_PREFIX);
@@ -14,6 +33,15 @@ export function isColorAvatar(url: string | null | undefined): url is string {
 
 export function colorFromAvatar(url: string): string {
   return url.slice(AVATAR_COLOR_PREFIX.length);
+}
+
+export function isAssetAvatar(url: string | null | undefined): url is string {
+  return !!url && url.startsWith(AVATAR_ASSET_PREFIX);
+}
+
+export function assetSourceFromAvatar(url: string) {
+  const id = url.slice(AVATAR_ASSET_PREFIX.length);
+  return AVATAR_ASSET_SOURCES[id] ?? null;
 }
 
 interface AvatarProps {
@@ -24,6 +52,13 @@ interface AvatarProps {
 
 export function Avatar({ url, size, fallbackLetter }: AvatarProps) {
   const shapeStyle = { width: size, height: size, borderRadius: size / 2 };
+
+  if (isAssetAvatar(url)) {
+    const source = assetSourceFromAvatar(url);
+    if (source) {
+      return <Image source={source} style={[styles.base, shapeStyle]} contentFit="cover" />;
+    }
+  }
 
   if (isColorAvatar(url)) {
     return <View style={[styles.base, shapeStyle, { backgroundColor: colorFromAvatar(url) }]} />;
@@ -41,7 +76,7 @@ export function Avatar({ url, size, fallbackLetter }: AvatarProps) {
 }
 
 const styles = StyleSheet.create({
-  base: { borderWidth: 0.5, borderColor: '#B5AFA0' },
-  placeholder: { backgroundColor: '#1E1D18', alignItems: 'center', justifyContent: 'center' },
-  placeholderText: { color: '#E8E4D9', fontWeight: 'bold' },
+  base: { borderWidth: 0.5, borderColor: '#7C8798' },
+  placeholder: { backgroundColor: '#141A24', alignItems: 'center', justifyContent: 'center' },
+  placeholderText: { color: '#ECEEF2', fontWeight: 'bold' },
 });

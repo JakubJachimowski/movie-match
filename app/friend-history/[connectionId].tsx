@@ -1,21 +1,8 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, colorFromAvatar, isColorAvatar } from '../../components/Avatar';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
-
-const AVATAR_BASE_SIZE = 84;
 
 interface DecisionRow {
   id: string;
@@ -24,9 +11,12 @@ interface DecisionRow {
   direction: 'left' | 'right';
 }
 
+// Historia przesunięć znajomego — dostępna z jego profilu (przycisk "Historia" w
+// app/friend-profile/[connectionId].tsx). Avatar znajomego mieszka teraz na
+// ekranie profilu (z powiększaniem do 3/4 szerokości ekranu), nie tutaj.
 export default function FriendHistoryScreen() {
   const router = useRouter();
-  const { connectionId, partnerId, username, avatarUrl } = useLocalSearchParams<{
+  const { connectionId, partnerId, username } = useLocalSearchParams<{
     connectionId: string;
     partnerId: string;
     username: string;
@@ -36,44 +26,6 @@ export default function FriendHistoryScreen() {
   const [decisions, setDecisions] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Tapnięcie w avatar znajomego powiększa go na całą szerokość ekranu, wyświetla
-  // ponad resztą interfejsu i przygasza tło o 75%. GÓRNA krawędź avatara podczas
-  // animacji się nie przemieszcza (zakotwiczona w miejscu, gdzie był mały avatar) —
-  // avatar rośnie tylko w dół i na boki. Osiągamy to animując width/height/left
-  // bezpośrednio (nie transform-scale, który skalowałby też od góry).
-  const { width: screenWidth } = useWindowDimensions();
-  const avatarAnchorRef = useRef<View>(null);
-  const [enlarged, setEnlarged] = useState(false);
-  const [overlayMounted, setOverlayMounted] = useState(false);
-  const [origin, setOrigin] = useState({ x: 0, y: 0, size: AVATAR_BASE_SIZE });
-  const progress = useRef(new Animated.Value(0)).current;
-
-  const targetSize = screenWidth;
-  const targetX = 0;
-
-  const overlaySize = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.size, targetSize] });
-  const overlayRadius = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.size / 2, targetSize / 2] });
-  const overlayLeft = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.x, targetX] });
-  const backdropOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.75] });
-
-  const toggleAvatarSize = () => {
-    if (enlarged) {
-      setEnlarged(false);
-      Animated.spring(progress, { toValue: 0, friction: 8, useNativeDriver: false }).start(() => {
-        setOverlayMounted(false);
-      });
-    } else {
-      avatarAnchorRef.current?.measureInWindow((x, y, width) => {
-        setOrigin({ x, y, size: width || AVATAR_BASE_SIZE });
-        setOverlayMounted(true);
-        setEnlarged(true);
-        requestAnimationFrame(() => {
-          Animated.spring(progress, { toValue: 1, friction: 8, useNativeDriver: false }).start();
-        });
-      });
-    }
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +57,7 @@ export default function FriendHistoryScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/images/moviematchbackground.png')}
+        source={require('../../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -115,25 +67,14 @@ export default function FriendHistoryScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        {/* Nickname znajomego (tytuł) powiększony o 20%. */}
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {username || '(nieznany)'}
+          Historia — {username || '(nieznany)'}
         </Text>
         <View style={{ width: 26 }} />
       </View>
 
-      <View style={styles.profileHeader}>
-        <TouchableOpacity activeOpacity={1} onPress={toggleAvatarSize}>
-          {/* Ukrywamy avatar w miejscu, gdy overlay jest zamontowany — jego
-              powiększona kopia jest wtedy renderowana nad całym interfejsem. */}
-          <View ref={avatarAnchorRef} style={overlayMounted ? styles.hiddenAvatar : undefined}>
-            <Avatar url={avatarUrl} size={AVATAR_BASE_SIZE} fallbackLetter={username} />
-          </View>
-        </TouchableOpacity>
-      </View>
-
       {loading ? (
-        <ActivityIndicator color="#E8E4D9" style={{ marginTop: 24 }} />
+        <ActivityIndicator color="#ECEEF2" style={{ marginTop: 24 }} />
       ) : error ? (
         <Text style={styles.emptyText}>{error}</Text>
       ) : decisions.length === 0 ? (
@@ -156,43 +97,13 @@ export default function FriendHistoryScreen() {
           )}
         />
       )}
-
-      {overlayMounted && (
-        <TouchableOpacity activeOpacity={1} style={styles.enlargeOverlay} onPress={toggleAvatarSize}>
-          <Animated.View style={[styles.enlargeBackdrop, { opacity: backdropOpacity }]} />
-          <Animated.View
-            style={[
-              styles.enlargedAvatarFrame,
-              {
-                top: origin.y, // stała — górna krawędź avatara nigdy się nie przemieszcza
-                left: overlayLeft,
-                width: overlaySize,
-                height: overlaySize,
-                borderRadius: overlayRadius,
-              },
-            ]}
-          >
-            {isColorAvatar(avatarUrl) ? (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: colorFromAvatar(avatarUrl as string) }]} />
-            ) : avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, styles.enlargedPlaceholder]}>
-                <Text style={styles.enlargedPlaceholderText}>
-                  {(username ?? '?').slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,15,23,0.72)' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,23 +112,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
-  // 18 -> ~22 (+20%).
-  headerTitle: { color: '#E8E4D9', fontSize: 22, fontWeight: 'bold', flex: 1, textAlign: 'center' },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
+  headerTitle: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold', flex: 1, textAlign: 'center' },
 
-  profileHeader: { alignItems: 'center', paddingBottom: 28, paddingTop: 8 },
-  hiddenAvatar: { opacity: 0 },
+  emptyText: { color: '#7C8798', fontSize: 14, textAlign: 'center', marginTop: 24, paddingHorizontal: 24 },
 
-  emptyText: { color: '#B5AFA0', fontSize: 14, textAlign: 'center', marginTop: 24, paddingHorizontal: 24 },
-
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  listContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 10,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     paddingVertical: 10,
     paddingHorizontal: 12,
     marginBottom: 6,
@@ -225,26 +132,5 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 18, fontWeight: 'bold', width: 26 },
   arrowRight: { color: '#4a7' },
   arrowLeft: { color: '#E07A5F' },
-  rowText: { color: '#E8E4D9', fontSize: 14, flex: 1 },
-
-  // Warstwa nad całym interfejsem: przyciemnione tło + powiększony avatar,
-  // animujący się od pozycji/rozmiaru małego avatara do pełnej szerokości ekranu.
-  enlargeOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
-    elevation: 1000,
-  },
-  enlargeBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
-  },
-  enlargedAvatarFrame: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: '#B5AFA0',
-    backgroundColor: '#1E1D18',
-  },
-  enlargedPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  enlargedPlaceholderText: { color: '#E8E4D9', fontWeight: 'bold', fontSize: 96 },
+  rowText: { color: '#ECEEF2', fontSize: 14, flex: 1 },
 });

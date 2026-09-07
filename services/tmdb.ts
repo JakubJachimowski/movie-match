@@ -67,8 +67,17 @@ export async function fetchMovieRuntime(movieId: string): Promise<number | null>
   return typeof data.runtime === 'number' && data.runtime > 0 ? data.runtime : null;
 }
 
-// Zwraca skróconą listę serwisów VOD (subskrypcja) dostępnych w Polsce dla danego filmu.
-export async function fetchWatchProviders(movieId: string): Promise<string[]> {
+export interface WatchProvider {
+  id: number;
+  name: string;
+  logoUrl: string;
+}
+
+const LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
+
+// Zwraca skróconą listę serwisów VOD (subskrypcja) dostępnych w Polsce dla danego
+// filmu — wraz z logo dostawcy (do wyświetlenia zamiast samej nazwy tekstowej).
+export async function fetchWatchProviders(movieId: string): Promise<WatchProvider[]> {
   const params = new URLSearchParams();
   params.set('api_key', API_KEY || '');
 
@@ -76,7 +85,11 @@ export async function fetchWatchProviders(movieId: string): Promise<string[]> {
   const data = await response.json();
 
   const plProviders = data.results?.PL?.flatrate || [];
-  return plProviders.map((p: any) => p.provider_name).slice(0, 3);
+  return plProviders.slice(0, 4).map((p: any) => ({
+    id: p.provider_id,
+    name: p.provider_name,
+    logoUrl: p.logo_path ? `${LOGO_BASE}${p.logo_path}` : '',
+  }));
 }
 
 export interface MovieSearchResult {
@@ -110,7 +123,7 @@ export async function searchMovies(query: string): Promise<MovieSearchResult[]> 
 
 export interface MovieFullDetails extends Movie {
   runtime: number | null;
-  providers: string[];
+  providers: WatchProvider[];
 }
 
 // Pełne dane filmu na żądanie (np. po kliknięciu w pozycję na liście "wspólnie
@@ -136,6 +149,10 @@ export async function fetchMovieFullDetails(movieId: string): Promise<MovieFullD
     country: (data.origin_country && data.origin_country[0]) || data.original_language?.toUpperCase() || '—',
     voteAverage: typeof data.vote_average === 'number' ? data.vote_average : 0,
     runtime: typeof data.runtime === 'number' && data.runtime > 0 ? data.runtime : null,
-    providers: plProviders.map((p: any) => p.provider_name).slice(0, 3),
+    providers: plProviders.slice(0, 4).map((p: any) => ({
+      id: p.provider_id,
+      name: p.provider_name,
+      logoUrl: p.logo_path ? `${LOGO_BASE}${p.logo_path}` : '',
+    })),
   };
 }

@@ -12,18 +12,21 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Avatar, AVATAR_COLOR_OPTIONS, AVATAR_COLOR_PREFIX } from '../components/Avatar';
+import { Avatar, AVATAR_ASSET_OPTIONS } from '../components/Avatar';
 import { GENRES } from '../constants/genres';
 import { MovieSearchResult, searchMovies } from '../services/tmdb';
 import { FavoriteMovie, useAuthStore } from '../store/useAuthStore';
+import { useConnectionsStore } from '../store/useConnectionsStore';
 
 const FAVORITE_SLOTS = [0, 1, 2];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
+  const myId = useAuthStore((s) => s.session?.user.id) ?? null;
   const uploadAvatar = useAuthStore((s) => s.uploadAvatar);
   const updateProfile = useAuthStore((s) => s.updateProfile);
+  const activeConnectionId = useConnectionsStore((s) => s.activeConnectionId);
 
   const [favoriteGenres, setFavoriteGenres] = useState<(number | null)[]>([null, null, null]);
   const [favoriteMovies, setFavoriteMovies] = useState<(FavoriteMovie | null)[]>([null, null, null]);
@@ -50,9 +53,9 @@ export default function ProfileScreen() {
     await updateProfile({ favorite_movies: next.filter((m): m is FavoriteMovie => m !== null) });
   };
 
-  const pickColorAvatar = async (hex: string) => {
+  const pickAssetAvatar = async (value: string) => {
     setAvatarModalVisible(false);
-    await updateProfile({ avatar_url: `${AVATAR_COLOR_PREFIX}${hex}` });
+    await updateProfile({ avatar_url: value });
   };
 
   const pickPhotoAvatar = async () => {
@@ -77,10 +80,25 @@ export default function ProfileScreen() {
     }
   };
 
+  // Historia własnych przesunięć — działa identycznie jak historia znajomego
+  // (ten sam ekran, ta sama tabela `decisions`), tylko z user_id ustawionym na
+  // mnie zamiast na znajomego.
+  const goToHistory = () => {
+    router.push({
+      pathname: '/friend-history/[connectionId]',
+      params: {
+        connectionId: activeConnectionId ?? '',
+        partnerId: myId ?? '',
+        username: profile?.username ?? '',
+        avatarUrl: profile?.avatar_url ?? '',
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground6.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -103,6 +121,10 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <Text style={styles.username}>{profile?.username ?? '...'}</Text>
 
+        <TouchableOpacity style={styles.historyButton} onPress={goToHistory}>
+          <Text style={styles.historyButtonText}>Historia</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Ulubione gatunki</Text>
         <View style={styles.slotRow}>
           {FAVORITE_SLOTS.map((slot) => {
@@ -123,13 +145,20 @@ export default function ProfileScreen() {
           {FAVORITE_SLOTS.map((slot) => {
             const movie = favoriteMovies[slot];
             return (
-              <TouchableOpacity key={slot} style={styles.movieSlot} onPress={() => setMovieSlot(slot)}>
-                {movie?.image ? (
-                  <Image source={{ uri: movie.image }} style={styles.movieSlotPoster} contentFit="cover" />
-                ) : (
-                  <Text style={styles.movieSlotText}>+ Dodaj</Text>
-                )}
-              </TouchableOpacity>
+              <View key={slot} style={styles.movieSlotColumn}>
+                <TouchableOpacity style={styles.movieSlot} onPress={() => setMovieSlot(slot)}>
+                  {movie?.image ? (
+                    <Image source={{ uri: movie.image }} style={styles.movieSlotPoster} contentFit="cover" />
+                  ) : (
+                    <Text style={styles.movieSlotText}>+ Dodaj</Text>
+                  )}
+                </TouchableOpacity>
+                {movie?.title ? (
+                  <Text style={styles.movieSlotTitle} numberOfLines={2}>
+                    {movie.title}
+                  </Text>
+                ) : null}
+              </View>
             );
           })}
         </View>
@@ -141,12 +170,14 @@ export default function ProfileScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>Wybierz avatar</Text>
             <View style={styles.colorRow}>
-              {AVATAR_COLOR_OPTIONS.map((hex) => (
-                <TouchableOpacity key={hex} style={[styles.colorSwatch, { backgroundColor: hex }]} onPress={() => pickColorAvatar(hex)} />
+              {AVATAR_ASSET_OPTIONS.map((opt) => (
+                <TouchableOpacity key={opt.id} style={styles.avatarSwatch} onPress={() => pickAssetAvatar(opt.value)}>
+                  <Image source={opt.source} style={styles.avatarSwatchImage} contentFit="cover" />
+                </TouchableOpacity>
               ))}
             </View>
             <TouchableOpacity style={styles.uploadButton} onPress={pickPhotoAvatar} disabled={avatarSaving}>
-              {avatarSaving ? <ActivityIndicator color="#26251F" /> : <Text style={styles.uploadButtonText}>Prześlij zdjęcie</Text>}
+              {avatarSaving ? <ActivityIndicator color="#0B0F17" /> : <Text style={styles.uploadButtonText}>Prześlij zdjęcie</Text>}
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -265,12 +296,12 @@ function MovieSearchModal({ visible, onClose, onSelect, onClear }: MovieSearchMo
           <TextInput
             style={styles.searchInput}
             placeholder="Wpisz tytuł..."
-            placeholderTextColor="#B5AFA0"
+            placeholderTextColor="#7C8798"
             value={query}
             onChangeText={setQuery}
             autoFocus
           />
-          {loading && <ActivityIndicator color="#E8E4D9" style={{ marginTop: 12 }} />}
+          {loading && <ActivityIndicator color="#ECEEF2" style={{ marginTop: 12 }} />}
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
@@ -304,8 +335,8 @@ function MovieSearchModal({ visible, onClose, onSelect, onClear }: MovieSearchMo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,8 +345,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
-  headerTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
+  backArrow: { color: '#ECEEF2', fontSize: 29 },
+  headerTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold' },
 
   content: { alignItems: 'center', padding: 24 },
   avatarWrapper: { marginBottom: 10 },
@@ -328,82 +359,97 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  avatarEditBadgeText: { color: '#E8E4D9', fontSize: 10, fontWeight: 'bold' },
-  username: { color: '#E8E4D9', fontSize: 20, fontWeight: 'bold', marginBottom: 24 },
+  avatarEditBadgeText: { color: '#ECEEF2', fontSize: 13, fontWeight: 'bold' },
+  username: { color: '#ECEEF2', fontSize: 23, fontWeight: 'bold', marginBottom: 24 },
 
-  sectionTitle: { color: '#B5AFA0', fontSize: 13, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
+  historyButton: {
+    alignSelf: 'stretch',
+    marginBottom: 24,
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  historyButtonText: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
+
+  sectionTitle: { color: '#7C8798', fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
   slotRow: { flexDirection: 'row', gap: 10, marginBottom: 16, width: '100%' },
   genreSlot: {
     flex: 1,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  genreSlotText: { color: '#E8E4D9', fontSize: 13, fontWeight: 'bold' },
+  genreSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
+  movieSlotColumn: { flex: 1 },
   movieSlot: {
-    flex: 1,
+    width: '100%',
     aspectRatio: 2 / 3,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   movieSlotPoster: { width: '100%', height: '100%' },
-  movieSlotText: { color: '#E8E4D9', fontSize: 13, fontWeight: 'bold' },
+  movieSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
+  movieSlotTitle: { color: '#ECEEF2', fontSize: 13, textAlign: 'center', marginTop: 6 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 24 },
   modalCard: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 20,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     padding: 20,
   },
-  modalTitle: { color: '#E8E4D9', fontSize: 17, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
+  modalTitle: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
 
   colorRow: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 18 },
-  colorSwatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 0.5, borderColor: '#B5AFA0' },
-  uploadButton: { backgroundColor: '#E8E4D9', borderRadius: 30, paddingVertical: 12, alignItems: 'center' },
-  uploadButtonText: { color: '#26251F', fontWeight: 'bold' },
+  avatarSwatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 0.5, borderColor: '#7C8798', overflow: 'hidden' },
+  avatarSwatchImage: { width: '100%', height: '100%' },
+  uploadButton: { backgroundColor: '#ECEEF2', borderRadius: 30, paddingVertical: 12, alignItems: 'center' },
+  uploadButtonText: { color: '#0B0F17', fontWeight: 'bold' },
 
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   genreGridTile: {
     width: '48%',
     paddingVertical: 16,
     marginBottom: 10,
-    backgroundColor: '#26251F',
+    backgroundColor: '#0B0F17',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  genreGridTileText: { color: '#E8E4D9', fontSize: 14, fontWeight: 'bold' },
+  genreGridTileText: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold' },
 
   clearButton: { marginTop: 10, alignItems: 'center', paddingVertical: 8 },
   clearButtonText: { color: '#E07A5F', fontWeight: 'bold' },
 
   searchModalCard: { maxHeight: '80%' },
   searchInput: {
-    backgroundColor: '#26251F',
+    backgroundColor: '#0B0F17',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: '#E8E4D9',
-    fontSize: 15,
+    color: '#ECEEF2',
+    fontSize: 18,
   },
   searchResults: { marginTop: 12, maxHeight: 320 },
   searchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   searchResultPoster: { width: 36, height: 52, borderRadius: 6, marginRight: 10 },
   searchResultPosterPlaceholder: { backgroundColor: '#333' },
-  searchResultText: { color: '#E8E4D9', fontSize: 14, flex: 1 },
+  searchResultText: { color: '#ECEEF2', fontSize: 17, flex: 1 },
 });

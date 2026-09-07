@@ -15,6 +15,10 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        // Pasek zakładek (Home/Explore) ukryty — ekran główny ma własną, w pełni
+        // niestandardową nawigację (avatary, Znajomi, Match!'ed, wybór gatunku),
+        // a zakładka "Explore" to niewykorzystany szablon startowy Expo.
+        tabBarStyle: { display: 'none' },
       }}>
       <Tabs.Screen
         name="index"

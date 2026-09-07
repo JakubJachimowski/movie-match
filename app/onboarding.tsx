@@ -77,7 +77,7 @@ export default function OnboardingScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -96,7 +96,7 @@ export default function OnboardingScreen() {
       <TextInput
         style={styles.input}
         placeholder="Nazwa użytkownika"
-        placeholderTextColor="#B5AFA0"
+        placeholderTextColor="#7C8798"
         autoCapitalize="none"
         autoCorrect={false}
         maxLength={USERNAME_MAX_LENGTH}
@@ -117,16 +117,16 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F', justifyContent: 'center', padding: 24 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
-  title: { color: '#E8E4D9', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 24 },
+  container: { flex: 1, backgroundColor: '#0B0F17', justifyContent: 'center', padding: 24 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
+  title: { color: '#ECEEF2', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 24 },
   avatarPicker: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -134,20 +134,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImage: { width: '100%', height: '100%' },
-  avatarPlaceholderText: { color: '#B5AFA0', textAlign: 'center', fontSize: 13 },
+  avatarPlaceholderText: { color: '#7C8798', textAlign: 'center', fontSize: 13 },
   input: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#E8E4D9',
+    color: '#ECEEF2',
     fontSize: 15,
     marginBottom: 12,
   },
   errorText: { color: '#E07A5F', marginBottom: 12, textAlign: 'center' },
-  hintText: { color: '#B5AFA0', fontSize: 11, marginBottom: 16, textAlign: 'center' },
+  hintText: { color: '#7C8798', fontSize: 11, marginBottom: 16, textAlign: 'center' },
   saveButton: { backgroundColor: '#4a7', borderRadius: 30, paddingVertical: 14, alignItems: 'center' },
   saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });

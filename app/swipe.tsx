@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GenreSettingsModal, COUNTRY_OPTIONS, PROVIDER_OPTIONS } from '../components/swipe/GenreSettingsModal';
 import { MatchPopup } from '../components/swipe/MatchPopup';
@@ -9,10 +9,11 @@ import { EmptyMovieCard, MovieCard } from '../components/swipe/MovieCard';
 import { useCardSwipeAnimation } from '../hooks/useCardSwipeAnimation';
 import { MatchPayload, useMatchRealtime } from '../hooks/useMatchRealtime';
 import { useMovieDeck } from '../hooks/useMovieDeck';
-import { fetchMovieRuntime, fetchWatchProviders } from '../services/tmdb';
+import { fetchMovieRuntime, fetchWatchProviders, WatchProvider } from '../services/tmdb';
 import { useAuthStore } from '../store/useAuthStore';
 import { useConnectionsStore } from '../store/useConnectionsStore';
 import { useDecisionsStore } from '../store/useDecisionsStore';
+import { useMatchesStore } from '../store/useMatchesStore';
 import { useMatchNotificationStore } from '../store/useMatchNotificationStore';
 import { GenreSettings, useMovieStore } from '../store/useMovieStore';
 
@@ -42,7 +43,7 @@ export default function Swipe() {
   const [areaSize, setAreaSize] = useState<{ width: number; height: number } | null>(null);
   const [undosLeft, setUndosLeft] = useState(0);
   const [runtimeCache, setRuntimeCache] = useState<Record<string, number | null>>({});
-  const [providersCache, setProvidersCache] = useState<Record<string, string[] | null>>({});
+  const [providersCache, setProvidersCache] = useState<Record<string, WatchProvider[] | null>>({});
   const [matchPopup, setMatchPopup] = useState<MatchPayload | null>(null);
 
   const lastSwipeDirectionRef = useRef<'left' | 'right' | null>(null);
@@ -55,6 +56,18 @@ export default function Swipe() {
   const hasUnseenMatch = useMatchNotificationStore((s) => s.hasUnseen(activeConnectionId));
   const markMatchUnseen = useMatchNotificationStore((s) => s.markUnseen);
   const markMatchSeen = useMatchNotificationStore((s) => s.markSeen);
+
+  // Dopasowania pobierane z wyprzedzeniem w tle, tak samo jak na ekranie
+  // głównym — do czasu wciśnięcia "Match!'ed" powinny już być gotowe.
+  const matchesReady = useMatchesStore((s) => s.ready && s.connectionId === activeConnectionId);
+  const prefetchMatches = useMatchesStore((s) => s.prefetch);
+  const [matchNavPending, setMatchNavPending] = useState(false);
+
+  useEffect(() => {
+    if (activeConnectionId && userId) {
+      prefetchMatches(activeConnectionId, userId);
+    }
+  }, [activeConnectionId, userId, prefetchMatches]);
 
   // Nasłuch w czasie rzeczywistym — dotyczy obojga użytkowników połączenia, ale
   // pełny popup "To dopasowanie!" pokazujemy tylko tej osobie, która właśnie
@@ -82,7 +95,7 @@ export default function Swipe() {
   let cardWidth = 0;
   let cardHeight = 0;
   if (areaSize) {
-    cardHeight = areaSize.height * 0.9;
+    cardHeight = areaSize.height * 0.99;
     cardWidth = Math.min(cardHeight * (2 / 3), areaSize.width * 0.94);
   }
 
@@ -100,13 +113,31 @@ export default function Swipe() {
     setUndosLeft(MAX_UNDOS_PER_SWIPE);
   };
 
-  const { cardTranslateX, cardTranslateY, rotateInterpolate, tintEnabled, isAnimatingRef, handleGestureEvent, onHandlerStateChange, animateEntrance } =
-    useCardSwipeAnimation({
+  const {
+    cardTranslateX,
+    cardTranslateY,
+    rotateInterpolate,
+    tintEnabled,
+    isAnimatingRef,
+    handleGestureEvent,
+    onHandlerStateChange,
+    animateEntrance,
+    animateUndoReturn,
+  } = useCardSwipeAnimation({
       areaSize,
       cardHeight,
       onSwipeComplete: recordSwipe,
       canSwipe: () => !!currentMovie && !!activeConnectionId && !!userId,
     });
+
+  // Pierwsza karta w sesji też ma "wjeżdżać" z losowej strony zamiast po
+  // prostu pojawić się na środku — jak każda kolejna.
+  const firstEntranceDoneRef = useRef(false);
+  useEffect(() => {
+    if (firstEntranceDoneRef.current || !areaSize || !currentMovie) return;
+    firstEntranceDoneRef.current = true;
+    animateEntrance(Math.random() < 0.5 ? 'left' : 'right');
+  }, [areaSize, currentMovie, animateEntrance]);
 
   useEffect(() => {
     if (!currentMovie) return;
@@ -149,11 +180,16 @@ export default function Swipe() {
     deck.goBack();
     setUndosLeft((u) => u - 1);
 
-    animateEntrance(dir);
+    animateUndoReturn(dir);
   };
 
-  const handleMatchButtonPress = () => {
+  const handleMatchButtonPress = async () => {
     if (activeConnectionId) markMatchSeen(activeConnectionId);
+    if (!matchesReady && activeConnectionId && userId) {
+      setMatchNavPending(true);
+      await prefetchMatches(activeConnectionId, userId);
+      setMatchNavPending(false);
+    }
     router.push('/matched');
   };
 
@@ -219,8 +255,13 @@ export default function Swipe() {
           style={[styles.headerButton, { marginTop: headerButtonMarginTop }, hasUnseenMatch && styles.headerButtonHighlighted]}
           onPress={handleMatchButtonPress}
           onLayout={(e) => setHeaderButtonHeight(e.nativeEvent.layout.height)}
+          disabled={matchNavPending}
         >
-          <Text style={styles.headerButtonText}>Match!'ed</Text>
+          {matchNavPending ? (
+            <ActivityIndicator color="#ECEEF2" size="small" />
+          ) : (
+            <Text style={styles.headerButtonText}>Match!'ed</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -317,10 +358,10 @@ export default function Swipe() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
 
   backRow: { flexDirection: 'row' },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
 
   // Wyrównanie do góry: przyciski Match!/Filtry dostają dynamiczny marginTop,
   // żeby ich tekst wypadał na równi z wierszem podsumowania filtra roku (patrz
@@ -329,9 +370,9 @@ const styles = StyleSheet.create({
   // Ten sam "chrom" co przyciski na ekranie głównym (Znajomi/Match!'ed), plus 10%
   // większy rozmiar względem poprzedniej wersji tego przycisku (44 -> ~48).
   headerButton: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     minWidth: 48,
     height: 48,
     paddingHorizontal: 16,
@@ -340,20 +381,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerButtonHighlighted: { backgroundColor: '#E8A33D', borderColor: '#E8A33D' },
-  headerButtonText: { color: '#E8E4D9', fontSize: 14, fontWeight: 'bold' },
+  headerButtonText: { color: '#ECEEF2', fontSize: 14, fontWeight: 'bold' },
 
   headerCenter: { flex: 1, marginHorizontal: 8, alignItems: 'center' },
-  genreLine: { color: '#E8E4D9', fontSize: 20, fontWeight: 'bold' },
-  filtersLine: { color: '#B5AFA0', fontSize: 15, marginTop: 2 },
+  genreLine: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold' },
+  filtersLine: { color: '#7C8798', fontSize: 15, marginTop: 2 },
 
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   card: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -362,7 +403,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   emptyCardOuter: { padding: 24 },
-  emptyCardText: { color: '#E8E4D9', fontSize: 16, textAlign: 'center', lineHeight: 22 },
+  emptyCardText: { color: '#ECEEF2', fontSize: 16, textAlign: 'center', lineHeight: 22 },
 
   bottomRow: {
     alignItems: 'center',
@@ -371,5 +412,5 @@ const styles = StyleSheet.create({
   },
   undoButton: { backgroundColor: '#333', width: 65, height: 65, borderRadius: 33, alignItems: 'center', justifyContent: 'center' },
   undoButtonDisabled: { opacity: 0.35 },
-  undoText: { color: '#E8E4D9', fontSize: 12, fontWeight: 'bold' },
+  undoText: { color: '#ECEEF2', fontSize: 12, fontWeight: 'bold' },
 });

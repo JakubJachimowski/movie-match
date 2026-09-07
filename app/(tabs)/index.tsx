@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Modal,
@@ -19,10 +20,12 @@ import { Avatar } from '../../components/Avatar';
 import { GENRES } from '../../constants/genres';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useConnectionsStore } from '../../store/useConnectionsStore';
+import { useMatchesStore } from '../../store/useMatchesStore';
 import { useMatchNotificationStore } from '../../store/useMatchNotificationStore';
 
 const GRID_COLUMNS = 2;
-const AVATAR_SIZE = 80;
+// +20% względem oryginalnych 80px.
+const AVATAR_SIZE = 96;
 const AVATAR_BLOCK_MIN_WIDTH = AVATAR_SIZE + 24;
 // Maks. długość nicku (patrz onboarding.tsx) — używana do wyliczenia miejsca
 // pod avatarem, żeby najdłuższy możliwy nick zawsze zmieścił się w całości.
@@ -47,6 +50,11 @@ const GENRE_BUTTON_HEIGHT = CATEGORY_PADDING_V * 2 + CATEGORY_FONT_SIZE * LINE_H
 const STACK_PILL_HEIGHT =
   CATEGORY_PADDING_V * SMALL_PILL_SCALE * 2 + CATEGORY_FONT_SIZE * SMALL_PILL_SCALE * LINE_HEIGHT_FACTOR;
 const TOTAL_STACK_HEIGHT = STACK_PILL_HEIGHT * 2 + STACK_GAP * 2 + GENRE_BUTTON_HEIGHT;
+// Odstęp napisu "Dotknij, by wybrać z listy" od przycisku gatunku POWYŻEJ
+// niego i od przycisku rozpoczęcia swipe'a PONIŻEJ niego — ten sam dystans w
+// obie strony (symetrycznie), zamiast dawnego, znacznie większego odstępu
+// wynikającego z wyśrodkowania przycisku w całej pozostałej przestrzeni.
+const HINT_GAP = 14;
 // Punkt odniesienia = granica (środek przerwy) między pigułką Znajomi a Match!'ed.
 const OFFSET_TO_STACK_BOUNDARY = STACK_PILL_HEIGHT + STACK_GAP / 2;
 
@@ -123,14 +131,41 @@ export default function Home() {
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
 
   const profile = useAuthStore((s) => s.profile);
+  const myId = useAuthStore((s) => s.session?.user.id) ?? null;
   const partners = useConnectionsStore((s) => s.partners);
   const activeConnectionId = useConnectionsStore((s) => s.activeConnectionId);
   const fetchConnections = useConnectionsStore((s) => s.fetchConnections);
   const hasUnseenMatch = useMatchNotificationStore((s) => s.hasUnseen(activeConnectionId));
 
+  // Dopasowania dla aktywnego znajomego pobierane z wyprzedzeniem, w tle, od
+  // razu jak tylko znamy activeConnectionId — zanim jeszcze ktoś wciśnie
+  // "Match!'ed" — żeby ten ekran był gotowy do pokazania od razu.
+  const matchesReady = useMatchesStore((s) => s.ready && s.connectionId === activeConnectionId);
+  const prefetchMatches = useMatchesStore((s) => s.prefetch);
+  const [matchNavPending, setMatchNavPending] = useState(false);
+
   useEffect(() => {
     fetchConnections();
   }, [fetchConnections]);
+
+  useEffect(() => {
+    if (activeConnectionId && myId) {
+      prefetchMatches(activeConnectionId, myId);
+    }
+  }, [activeConnectionId, myId, prefetchMatches]);
+
+  // Ekran Match!'ed otwiera się dopiero, gdy jego dane są w 100% gotowe —
+  // jeśli prefetch w tle jeszcze nie skończył, doczekujemy go tutaj (krótki
+  // spinner na przycisku), zamiast wchodzić na ekran i doładowywać kafelki
+  // dopiero po wejściu.
+  const goToMatched = async () => {
+    if (!matchesReady && activeConnectionId && myId) {
+      setMatchNavPending(true);
+      await prefetchMatches(activeConnectionId, myId);
+      setMatchNavPending(false);
+    }
+    router.push('/matched');
+  };
 
   const activePartner = partners.find((p) => p.connectionId === activeConnectionId);
 
@@ -243,7 +278,8 @@ export default function Home() {
   // krawędzi ekranu. W = 4*edgeGap + 2*AVATAR_SIZE  =>  edgeGap = (W - 2*AVATAR_SIZE) / 4.
   // Pozycja liczona zawsze na bazie stałej szerokości bloku (AVATAR_BLOCK_MIN_WIDTH) —
   // nick, choćby szerszy, nigdy tego nie zaburza.
-  const avatarRowTop = screenHeight / 3 - AVATAR_SIZE / 2 - screenHeight * 0.1;
+  // Przesunięte niżej o połowę wysokości przycisku gatunku (GENRE_BUTTON_HEIGHT/2).
+  const avatarRowTop = screenHeight / 3 - AVATAR_SIZE / 2 - screenHeight * 0.1 + GENRE_BUTTON_HEIGHT / 2;
   const edgeGap = Math.max(0, (screenWidth - 2 * AVATAR_SIZE) / 4);
   const leftAvatarCenterX = edgeGap + AVATAR_SIZE / 2;
   const rightAvatarCenterX = screenWidth - edgeGap - AVATAR_SIZE / 2;
@@ -252,7 +288,8 @@ export default function Home() {
 
   // Główne przyciski (Znajomi / Match!'ed / picker gatunku): wypozycjonowane tak,
   // by środek ekranu wypadał dokładnie między pigułkami Znajomi i Match!'ed.
-  const mainButtonsTop = screenHeight / 2 - OFFSET_TO_STACK_BOUNDARY;
+  // Przesunięte niżej o połowę wysokości przycisku gatunku (GENRE_BUTTON_HEIGHT/2).
+  const mainButtonsTop = screenHeight / 2 - OFFSET_TO_STACK_BOUNDARY + GENRE_BUTTON_HEIGHT / 2;
   const mainButtonsBottom = mainButtonsTop + TOTAL_STACK_HEIGHT;
 
   const ownBlock = (
@@ -277,7 +314,7 @@ export default function Home() {
       onPress={() =>
         activePartner
           ? router.push({
-              pathname: '/friend-history/[connectionId]',
+              pathname: '/friend-profile/[connectionId]',
               params: {
                 connectionId: activePartner.connectionId,
                 partnerId: activePartner.partnerId,
@@ -300,7 +337,7 @@ export default function Home() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/images/moviematchbackground.png')}
+        source={require('../../assets/images/moviematchbackground5.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -332,12 +369,20 @@ export default function Home() {
 
       <View style={[styles.headerRow, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.appTitle}>MovieMatch</Text>
-        <Pressable
-          style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
-          onPress={() => router.push('/account')}
-        >
-          <Ionicons name="settings-outline" size={22} color="#E8E4D9" />
-        </Pressable>
+        <View style={styles.headerButtonsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#ECEEF2" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
+            onPress={() => router.push('/account')}
+          >
+            <Ionicons name="settings-outline" size={22} color="#ECEEF2" />
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.avatarBlockAbsolute, { top: avatarRowTop, left: leftBlockX }]}>{ownOnLeft ? ownBlock : friendBlock}</View>
@@ -367,11 +412,16 @@ export default function Home() {
               smallPillWidth ? { width: smallPillWidth } : null,
               hasUnseenMatch && styles.stackPillHighlighted,
             ]}
-            onPress={() => router.push('/matched')}
+            onPress={goToMatched}
             onPressIn={matchPress.onPressIn}
             onPressOut={matchPress.onPressOut}
+            disabled={matchNavPending}
           >
-            <Text style={styles.stackPillText}>Match!'ed</Text>
+            {matchNavPending ? (
+              <ActivityIndicator color="#ECEEF2" size="small" />
+            ) : (
+              <Text style={styles.stackPillText}>Match!'ed</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -417,10 +467,10 @@ export default function Home() {
         </View>
       </View>
 
-      <View style={[styles.belowStackArea, { top: mainButtonsBottom + 20 }]}>
+      <View style={[styles.belowStackArea, { top: mainButtonsBottom + HINT_GAP }]}>
         <Text style={styles.categoryHint}>Dotknij, by wybrać z listy</Text>
 
-        <View style={styles.swipeButtonArea}>
+        <View style={[styles.swipeButtonArea, { marginTop: HINT_GAP }]}>
           <Animated.View style={[styles.swipeButton, { transform: [{ scale: swipeBtnPress.scale }] }]}>
             <TouchableOpacity
               activeOpacity={1}
@@ -433,6 +483,7 @@ export default function Home() {
               <Ionicons name="videocam-outline" size={44} color="#FF6A4D" style={styles.swipeIconGlow} />
             </TouchableOpacity>
           </Animated.View>
+          <Text style={[styles.categoryHint, styles.belowSwipeHint]}>Dotknij, by zacząć wybierać filmy</Text>
         </View>
       </View>
 
@@ -457,8 +508,8 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.55)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.55)' },
 
   measureLayer: { position: 'absolute', top: -1000, left: 0, opacity: 0 },
 
@@ -468,24 +519,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
   },
-  appTitle: { fontSize: 22, fontWeight: 'bold', color: '#E8E4D9' },
+  appTitle: { fontSize: 22, fontWeight: 'bold', color: '#ECEEF2' },
 
+  headerButtonsRow: { flexDirection: 'row', gap: 10 },
   settingsButton: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsButtonPressed: { backgroundColor: '#26251F' },
+  settingsButtonPressed: { backgroundColor: '#0B0F17' },
 
   avatarBlockAbsolute: { position: 'absolute' },
   avatarBlock: { alignItems: 'center' },
   avatarNickname: {
-    color: '#E8E4D9',
+    color: '#ECEEF2',
     fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -493,9 +545,9 @@ const styles = StyleSheet.create({
 
   categoryStack: { position: 'absolute', left: 20, right: 20, alignItems: 'center' },
   stackPill: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 18 * SMALL_PILL_SCALE,
     paddingVertical: CATEGORY_PADDING_V * SMALL_PILL_SCALE,
     paddingHorizontal: CATEGORY_PADDING_H * SMALL_PILL_SCALE,
@@ -504,44 +556,48 @@ const styles = StyleSheet.create({
     marginBottom: STACK_GAP,
   },
   stackPillHighlighted: { backgroundColor: '#E8A33D', borderColor: '#E8A33D' },
-  stackPillText: { color: '#E8E4D9', fontSize: CATEGORY_FONT_SIZE * SMALL_PILL_SCALE, fontWeight: 'bold' },
+  stackPillText: { color: '#ECEEF2', fontSize: CATEGORY_FONT_SIZE * SMALL_PILL_SCALE, fontWeight: 'bold' },
 
   categoryPicker: { flexDirection: 'row', alignItems: 'stretch', width: '100%' },
   arrowButtonWrap: { flex: 1 },
   arrowButton: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  arrowText: { color: '#E8E4D9', fontSize: 31, fontWeight: 'bold' },
+  arrowText: { color: '#ECEEF2', fontSize: 31, fontWeight: 'bold' },
   categoryNameButton: {
     marginHorizontal: 10,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 18,
     paddingVertical: CATEGORY_PADDING_V,
     paddingHorizontal: CATEGORY_PADDING_H,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryNameText: { color: '#E8E4D9', fontSize: CATEGORY_FONT_SIZE, fontWeight: 'bold' },
+  categoryNameText: { color: '#ECEEF2', fontSize: CATEGORY_FONT_SIZE, fontWeight: 'bold' },
 
-  belowStackArea: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
-  categoryHint: { color: '#918C80', fontSize: 12, marginBottom: 16 }, // #B5AFA0 przyciemnione o 20%
+  // Bez bottom:0 — wysokość dopasowuje się do treści (napis + przycisk +
+  // drugi napis), pozycjonowana wyłącznie przez "top" (patrz JSX), symetrycznie
+  // względem przycisku gatunku powyżej i przycisku swipe'a poniżej.
+  belowStackArea: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  categoryHint: { color: '#5E6673', fontSize: 12, marginBottom: HINT_GAP }, // #7C8798 przyciemnione o 20%
+  belowSwipeHint: { marginBottom: 0, marginTop: HINT_GAP },
 
-  swipeButtonArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  swipeButtonArea: { width: '100%', alignItems: 'center' },
   swipeButton: {
     width: '37%',
     aspectRatio: 1,
     borderRadius: 999,
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -560,24 +616,24 @@ const styles = StyleSheet.create({
 
   gridOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 24 },
   gridCard: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 20,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     padding: 20,
   },
-  gridTitle: { color: '#E8E4D9', fontSize: 17, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
+  gridTitle: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
   gridRow: { flexDirection: 'row', marginBottom: 10 },
   gridTile: {
     flex: 1,
     marginHorizontal: 5,
     paddingVertical: 20,
-    backgroundColor: '#26251F',
+    backgroundColor: '#0B0F17',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gridTileText: { color: '#E8E4D9', fontSize: 15, fontWeight: 'bold' },
+  gridTileText: { color: '#ECEEF2', fontSize: 15, fontWeight: 'bold' },
 });

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "fristtry",
+    "name": "MovieMatch",
     "slug": "fristtry",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -46,12 +46,6 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "0e916c94-9a69-4204-b330-eaea38e8bf47"
-      }
     }
   }
 }

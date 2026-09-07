@@ -85,7 +85,7 @@ export default function ConnectionsScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -112,7 +112,7 @@ export default function ConnectionsScreen() {
         ) : null}
         <TouchableOpacity style={styles.secondaryButton} onPress={handleGenerateInvite} disabled={generating}>
           {generating ? (
-            <ActivityIndicator color="#E8E4D9" />
+            <ActivityIndicator color="#ECEEF2" />
           ) : (
             <Text style={styles.secondaryButtonText}>
               {pendingInvite && !isExpired ? 'Wygeneruj nowy kod' : 'Wygeneruj kod zaproszenia'}
@@ -124,7 +124,7 @@ export default function ConnectionsScreen() {
         <TextInput
           style={styles.input}
           placeholder="Kod zaproszenia"
-          placeholderTextColor="#B5AFA0"
+          placeholderTextColor="#7C8798"
           autoCapitalize="characters"
           value={joinCode}
           onChangeText={setJoinCode}
@@ -139,8 +139,8 @@ export default function ConnectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -149,39 +149,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
-  headerTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
+  headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
 
   scrollContent: { padding: 20, paddingBottom: 60 },
-  sectionTitle: { color: '#E8E4D9', fontSize: 16, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
+  sectionTitle: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
 
   inviteBox: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 14,
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     padding: 16,
     alignItems: 'center',
     marginBottom: 10,
   },
-  inviteCode: { color: '#E8E4D9', fontSize: 28, fontWeight: 'bold', letterSpacing: 4 },
-  inviteExpiry: { color: '#B5AFA0', fontSize: 12, marginTop: 6, marginBottom: 12 },
+  inviteCode: { color: '#ECEEF2', fontSize: 28, fontWeight: 'bold', letterSpacing: 4 },
+  inviteExpiry: { color: '#7C8798', fontSize: 12, marginTop: 6, marginBottom: 12 },
   copyButton: {
     backgroundColor: '#333',
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 18,
   },
-  copyButtonText: { color: '#E8E4D9', fontWeight: 'bold', fontSize: 13 },
+  copyButtonText: { color: '#ECEEF2', fontWeight: 'bold', fontSize: 13 },
 
   input: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderWidth: 0.5,
-    borderColor: '#B5AFA0',
+    borderColor: '#7C8798',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#E8E4D9',
+    color: '#ECEEF2',
     fontSize: 15,
     marginBottom: 12,
   },
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  secondaryButtonText: { color: '#E8E4D9', fontWeight: 'bold' },
+  secondaryButtonText: { color: '#ECEEF2', fontWeight: 'bold' },
   primaryButton: { backgroundColor: '#4a7', borderRadius: 30, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: 'bold' },
 });

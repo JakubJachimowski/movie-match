@@ -33,7 +33,7 @@ export function MatchPopup({ visible, title, year, image, onClose }: MatchPopupP
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 30 },
   card: {
-    backgroundColor: '#1E1D18',
+    backgroundColor: '#141A24',
     borderRadius: 20,
     borderWidth: 0.5,
     borderColor: '#E8A33D',
@@ -43,8 +43,8 @@ const styles = StyleSheet.create({
   },
   heading: { color: '#E8A33D', fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
   poster: { width: 140, height: 210, borderRadius: 12, marginBottom: 14 },
-  title: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 6 },
-  subtitle: { color: '#B5AFA0', fontSize: 14, textAlign: 'center', marginBottom: 18 },
+  title: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 6 },
+  subtitle: { color: '#7C8798', fontSize: 14, textAlign: 'center', marginBottom: 18 },
   button: { backgroundColor: '#E8A33D', paddingVertical: 12, paddingHorizontal: 32, borderRadius: 30 },
-  buttonText: { color: '#26251F', fontWeight: 'bold', fontSize: 15 },
+  buttonText: { color: '#0B0F17', fontWeight: 'bold', fontSize: 15 },
 });

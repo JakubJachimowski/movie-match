@@ -8,7 +8,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground.png')}
+        source={require('../assets/images/moviematchbackground7.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -36,8 +36,8 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#26251F' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,37,31,0.72)' },
+  container: { flex: 1, backgroundColor: '#0B0F17' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23,0.72)' },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -46,8 +46,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  backArrow: { color: '#E8E4D9', fontSize: 26 },
-  headerTitle: { color: '#E8E4D9', fontSize: 18, fontWeight: 'bold' },
+  backArrow: { color: '#ECEEF2', fontSize: 26 },
+  headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   editProfileButton: {
     backgroundColor: '#333',
@@ -56,6 +56,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     marginBottom: 24,
   },
-  editProfileButtonText: { color: '#E8E4D9', fontWeight: 'bold' },
-  placeholderText: { color: '#B5AFA0', fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  editProfileButtonText: { color: '#ECEEF2', fontWeight: 'bold' },
+  placeholderText: { color: '#7C8798', fontSize: 15, textAlign: 'center', lineHeight: 22 },
 });
