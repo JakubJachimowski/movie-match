@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '../components/Avatar';
 import { MovieDetailModal } from '../components/swipe/MovieDetailModal';
 import { useFriendRatingRealtime } from '../hooks/useFriendRatingRealtime';
@@ -273,7 +273,20 @@ export default function MatchedScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           Wspólnie polubione ({matches.length})
         </Text>
-        <View style={{ width: 26 }} />
+        <View style={styles.headerActionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/account')}
+          >
+            <Ionicons name="settings-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+        </View>
       </View>
 
       {activeConnectionId && (
@@ -544,6 +557,18 @@ const styles = StyleSheet.create({
   },
   backArrow: { color: '#ECEEF2', fontSize: 26 },
   headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', flex: 1, textAlign: 'center' },
+  headerActionsRow: { flexDirection: 'row', gap: 8 },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionButtonPressed: { backgroundColor: '#0B0F17' },
 
   topBar: {
     flexGrow: 0,

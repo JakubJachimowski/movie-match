@@ -1,7 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GenreSettingsModal, COUNTRY_OPTIONS, PROVIDER_OPTIONS } from '../components/swipe/GenreSettingsModal';
 import { MatchPopup } from '../components/swipe/MatchPopup';
@@ -244,13 +245,27 @@ export default function Swipe() {
         contentFit="cover"
       />
 
-      <View style={[styles.backRow, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
+      <View style={[styles.backRow, styles.aboveCard, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
+        <View style={styles.headerActionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/account')}
+          >
+            <Ionicons name="settings-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+        </View>
       </View>
 
-      <View style={[styles.headerRow, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
+      <View style={[styles.headerRow, styles.aboveCard, { paddingHorizontal: EDGE_SPACING, marginBottom: TOP_GAP }]}>
         <TouchableOpacity
           style={[styles.headerButton, { marginTop: headerButtonMarginTop }, hasUnseenMatch && styles.headerButtonHighlighted]}
           onPress={handleMatchButtonPress}
@@ -327,13 +342,15 @@ export default function Swipe() {
 
       {/* "Nie chcę"/"Chcę" usunięte — wybór filmu odbywa się wyłącznie przez
           przesunięcie karty (gest), Cofnij zostaje jedynym przyciskiem. */}
-      <View style={[styles.bottomRow, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.bottomRow, styles.aboveCard, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           style={[styles.undoButton, undosLeft <= 0 && styles.undoButtonDisabled]}
           onPress={handleUndo}
           disabled={undosLeft <= 0}
         >
-          <Text style={styles.undoText}>Cofnij</Text>
+          {/* Zawinięta strzałka zamiast napisu "Cofnij" — uniwersalny symbol,
+              zrozumiały niezależnie od języka. */}
+          <Ionicons name="arrow-undo" size={28} color="#ECEEF2" />
         </TouchableOpacity>
       </View>
 
@@ -360,8 +377,23 @@ export default function Swipe() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0B0F17' },
 
-  backRow: { flexDirection: 'row' },
+  backRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backArrow: { color: '#ECEEF2', fontSize: 26 },
+  // Przyciski notyfikacji/ustawień — ten sam "chrom" co reszta pigułek w
+  // aplikacji, mniejsze niż na ekranie głównym, żeby zmieściły się obok
+  // strzałki wstecz bez przeciążania górnego paska.
+  headerActionsRow: { flexDirection: 'row', gap: 8 },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionButtonPressed: { backgroundColor: '#0B0F17' },
 
   // Wyrównanie do góry: przyciski Match!/Filtry dostają dynamiczny marginTop,
   // żeby ich tekst wypadał na równi z wierszem podsumowania filtra roku (patrz
@@ -387,7 +419,17 @@ const styles = StyleSheet.create({
   genreLine: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold' },
   filtersLine: { color: '#7C8798', fontSize: 15, marginTop: 2 },
 
-  cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // Karta (cardArea) potrafi podczas animacji "wyjechać" poza swój normalny
+  // obszar (wjazd zza góry ekranu, wyrzut poniżej dolnej krawędzi) i wizualnie
+  // nachodzić na przyciski w innych wierszach. Domyślnie React Native rysuje
+  // rodzeństwo w kolejności występowania w JSX, więc wiersze WCZEŚNIEJSZE niż
+  // cardArea (strzałka powrotu, Match!'ed/Filtry, notyfikacje/ustawienia)
+  // byłyby przez kartę przesłaniane. aboveCard podnosi je nad kartę (bez
+  // zmiany ich pozycji w layoucie — zIndex wpływa tylko na kolejność
+  // rysowania) — dokładnie tak, jak bottomRow z przyciskiem Cofnij już
+  // zachowuje się "za darmo" dzięki temu, że występuje w JSX PO cardArea.
+  cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 0, elevation: 0 },
+  aboveCard: { zIndex: 10, elevation: 10 },
 
   card: {
     borderRadius: 20,
@@ -410,7 +452,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
-  undoButton: { backgroundColor: '#333', width: 65, height: 65, borderRadius: 33, alignItems: 'center', justifyContent: 'center' },
+  undoButton: {
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    width: 65,
+    height: 65,
+    borderRadius: 33,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   undoButtonDisabled: { opacity: 0.35 },
-  undoText: { color: '#ECEEF2', fontSize: 12, fontWeight: 'bold' },
 });

@@ -14,42 +14,165 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PIVOT_BELOW_UNDO = SCREEN_HEIGHT / 3;
 const BOTTOM_BAR_HEIGHT_ESTIMATE = 110;
 
-// Wylot: czas trwania liczony fizycznie jako dystans/prędkość gestu — im mocniej
-// "rzucisz" kartę, tym szybciej faktycznie opuszcza ekran, zamiast stałego czasu.
-const MIN_EXIT_DURATION = 160;
+// PRÓBA ze sprężyną (Animated.spring napędzaną realną prędkością gestu)
+// okazała się ślepą uliczką: X i Y mają BARDZO różne dystanse (55% szerokości
+// vs 105% wysokości), więc przy tych samych parametrach sprężyny X "dojeżdżał"
+// do celu dużo szybciej niż Y i zamierał (efekt "ściany"), a mocno tłumiona
+// sprężyna na dużym dystansie ma długi, ledwo widoczny "ogon" dojazdu do celu
+// (stąd wrażenie zatrzymania tuż przed krawędzią, a potem nagłego zniknięcia
+// przy resecie do pozycji startowej wjazdu). Wracamy do Animated.timing —
+// przewidywalny, ograniczony czasowo, gwarantuje pełne zejście poza ekran w
+// stałym czasie, niezależnie od tego, jak "leniwie" kończyłaby się sprężyna.
+//
+// Czas trwania liczony fizycznie: dystans / prędkość gestu — im mocniej
+// "rzucisz" kartę, tym szybciej realnie znika, zamiast stałego czasu.
+const MIN_EXIT_DURATION = 220;
 const MAX_EXIT_DURATION = 420;
 const FLING_MIN_SPEED = 400;
 
-// Odrzucana karta ma wyglądać, jakby ktoś ją "zabierał" znad dołu telefonu:
-// poziomy ruch płynie CIĄGLE przez cały czas trwania animacji (nigdy się nie
-// zatrzymuje ani nie wygasza do prawie zera), a do niego DOCHODZI pionowy
-// zjazd w dół — z początku ledwo zauważalny, potem gwałtownie przyspieszający,
-// jakby karta realnie znikała pod dolną krawędzią ekranu.
 const EXIT_HORIZONTAL_RATIO = 0.55;
 const EXIT_VERTICAL_RATIO = 1.05;
-// Faza 1 pionu (wolna) vs faza 2 (mocne przyspieszenie w dół): czas trwania i
-// jak daleko wzdłuż trasy Y dochodzi karta pod koniec pierwszej fazy.
-const EXIT_PHASE1_DURATION_RATIO = 0.38;
-const EXIT_PHASE1_Y_FRACTION = 0.12;
-
-// Nowa karta ma wyglądać, jakby ktoś ją "podawał" znad góry telefonu:
-// spada głównie pionowo (jeszcze częściowo poza ekranem/widoczna od góry),
-// po czym w końcowej fazie prostuje się w ruch poziomy, osiadając na miejscu.
-const ENTER_DURATION = 380;
-const ENTER_HORIZONTAL_RATIO = 0.5;
-const ENTER_VERTICAL_RATIO = 1.05;
-// Faza 1 (pionowa): czas trwania i jak daleko wzdłuż trasy Y/X dochodzi karta.
-const ENTER_PHASE1_DURATION_RATIO = 0.62;
-const ENTER_PHASE1_Y_FRACTION = 0.85;
-const ENTER_PHASE1_X_FRACTION = 0.12;
-
-// Cofnięcie (Cofnij): karta ma "wracać" z tej samej strony, w którą ją
-// pierwotnie przesunięto — czysto poziomy zjazd do środka, bez łuku pionowego.
-const UNDO_RETURN_DURATION = 260;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+const ENTER_DURATION = 380;
+const ENTER_HORIZONTAL_RATIO = 0.5;
+const ENTER_VERTICAL_RATIO = 1.05;
+
+// --- Model ruchu oparty na UDZIALE OSI W CHWILOWEJ PRĘDKOŚCI ---------------
+// Zamiast dwóch niezależnie dobranych krzywych (jedna na X, jedna na Y), które
+// zawsze prowadzą do jakiegoś "załamania" (bo w danej chwili każda oś ma swój
+// własny, przypadkowy udział w ruchu), animacja jest tu opisana wprost tak,
+// jak wyglądać ma na ekranie: jaki % ruchu w danej chwili idzie w poziom, a
+// jaki w pion — i ten podział płynnie, jedną krzywą, przechodzi od stanu
+// startowego do docelowego. Przy wjeździe: start = 100% pion / 0% poziom,
+// koniec = 25% pion / 75% poziom. Przy wyrzucie po swipe: dokładnie odwrotnie
+// — start = 100% poziom / 0% pion, koniec = 75% pion / 25% poziom (to
+// moment, w którym karta w zasadzie znika z ekranu). Zmiana udziału sama
+// biegnie po krzywej ease-out (szybka zaraz po starcie, coraz wolniejsza w
+// miarę zbliżania się do wartości końcowej) — stąd np. przy wjeździe udział
+// poziomu skacze z 0% do ok. 25% już na samym początku animacji, potem
+// zbliża się do 50:50, a na koniec łagodnie dochodzi do docelowych 75%.
+// Do tego dochodzi CAŁKOWITA prędkość (przed podziałem na osie) — ale tu
+// wjazd i wyrzut MUSZĄ się różnić: wjazd kończy się lądowaniem karty na
+// docelowym miejscu, więc ma sens, żeby zwalniała do zera na końcu (klasyczna
+// parabola, której całka to znana krzywa ease-in-out). Wyrzut natomiast ma
+// kartę definitywnie wynieść poza ekran — gdyby też zwalniała do zera na
+// końcu, oś o mniejszym udziale w końcówce (np. X, któremu zostaje tylko
+// 25%) zdążyłaby "wyczerpać" swój dystans dużo wcześniej niż druga i przez
+// resztę animacji ledwo by drgała — to właśnie dawało wrażenie "niewidzialnej
+// ściany" i zatrzymania kawałek poza ekranem. Dlatego wyrzut używa krzywej
+// narastającej (ease-in, bez zwalniania na końcu) — karta cały czas
+// przyspiesza, aż znika z ekranu.
+const SHARE_SAMPLES = 200;
+
+// 0 -> 1, szybka zmiana zaraz po starcie, spowalniająca w miarę zbliżania
+// się do 1 (kwadratowe ease-out) — to ten kształt daje "tuż po rozpoczęciu"
+// szybkie przejście do 25%, a dopiero potem wolniejsze dojście do 50% i 75%.
+function shareShape(t: number) {
+  return 2 * t - t * t;
+}
+
+// Wjazd: symetryczna parabola (zero -> szczyt -> zero) — łagodny start i
+// łagodne lądowanie na docelowym miejscu.
+function enterSpeedProfile(t: number) {
+  return 6 * t * (1 - t);
+}
+
+// Wyrzut: narasta przez całą animację, bez zwalniania na końcu — karta cały
+// czas przyspiesza aż znika z ekranu, zamiast dobiegać i zatrzymywać się przy
+// krawędzi. W przeciwieństwie do wjazdu NIE zaczyna się od zera: w chwili
+// puszczenia palca karta ma już jakąś realną prędkość (z przeciągania), więc
+// wymuszenie zerowej prędkości na starcie animacji (t=0) dawało wyczuwalne
+// "zerwanie" ruchu — Y, które jeszcze przed puszczeniem trochę "jechało" za
+// palcem, nagle zamierało na moment, zanim X zdążył wystartować. Start od
+// niezerowej wartości bazowej usuwa tę martwą chwilę.
+function exitSpeedProfile(t: number) {
+  return 0.4 + 1.6 * t;
+}
+
+// Buduje model jednej osi: gotową funkcję "easing" (t: 0..1 -> 0..1, całkując
+// w czasie udział tej osi w prędkości i normalizując tak, by kończyła się
+// dokładnie na 1) ORAZ jej "rawTotal" — sumę SPRZED tej normalizacji.
+// hShareStart/hShareEnd to udział POZIOMU w prędkości na starcie/końcu
+// animacji (udział pionu to zawsze dopełnienie do 1); speedProfile to kształt
+// CAŁKOWITEJ prędkości w czasie (przed podziałem na osie).
+//
+// rawTotal jest kluczowe przy wyrzucie: X i Y mają z natury BARDZO różne
+// docelowe dystanse (55% szerokości vs 105% wysokości ekranu). Gdyby każdą
+// oś niezależnie "rozciągnąć" tak, by zaczynała w miejscu puszczenia karty i
+// kończyła dokładnie na swoim (stałym) dystansie, RZECZYWISTA prędkość w
+// pikselach na sekundę i tak byłaby zdominowana przez oś o większym
+// dystansie (Y) przez większość animacji, niezależnie od zaplanowanego
+// udziału — to właśnie dawało wrażenie "karta zatrzymuje się w poziomie i
+// dalej porusza się już tylko pionowo". rawTotal pozwala zamiast tego
+// wyliczyć jeden wspólny mnożnik (scale, patrz performSwipe), który
+// przelicza oba dystanse tak, by RZECZYWISTY stosunek prędkości między
+// osiami dokładnie odpowiadał zaplanowanemu udziałowi przez cały czas
+// trwania animacji.
+function buildAxisModel(
+  hShareStart: number,
+  hShareEnd: number,
+  axis: 'x' | 'y',
+  speedProfile: (t: number) => number
+) {
+  const samples: number[] = [0];
+  let cumulative = 0;
+  for (let i = 1; i <= SHARE_SAMPLES; i++) {
+    const t = i / SHARE_SAMPLES;
+    const prevT = (i - 1) / SHARE_SAMPLES;
+    const midT = (t + prevT) / 2;
+    const hFrac = hShareStart + (hShareEnd - hShareStart) * shareShape(midT);
+    const axisFrac = axis === 'x' ? hFrac : 1 - hFrac;
+    const totalSpeed = speedProfile(midT);
+    cumulative += axisFrac * totalSpeed * (1 / SHARE_SAMPLES);
+    samples.push(cumulative);
+  }
+  const rawTotal = samples[samples.length - 1] || 1e-6;
+  const normalized = samples.map((v) => v / rawTotal);
+
+  const easing = (t: number) => {
+    const clamped = Math.min(Math.max(t, 0), 1);
+    const pos = clamped * SHARE_SAMPLES;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0 + 1, SHARE_SAMPLES);
+    const frac = pos - i0;
+    return normalized[i0] + (normalized[i1] - normalized[i0]) * frac;
+  };
+
+  return { easing, rawTotal };
+}
+
+// Wjazd nowej karty: 100% pion -> 75% poziom / 25% pion. Dystanse (X i Y) są
+// tu ustalone niezależnie (patrz ENTER_HORIZONTAL_RATIO/ENTER_VERTICAL_RATIO)
+// — uproszczenie zaakceptowane, bo wjazd wygląda dobrze w praktyce.
+const enterXModel = buildAxisModel(0, 0.75, 'x', enterSpeedProfile);
+const enterYModel = buildAxisModel(0, 0.75, 'y', enterSpeedProfile);
+const enterXEasing = enterXModel.easing;
+const enterYEasing = enterYModel.easing;
+
+// Wyrzut karty po swipe: ~92% poziom -> 75% pion / 25% poziom — udziałowo
+// niemal dokładna odwrotność wjazdu (0.92 zamiast pełnego 1 na starcie), z
+// NARASTAJĄCĄ, a nie zwalniającą prędkością całkowitą (patrz komentarz przy
+// exitSpeedProfile). Start ustawiony na 0.92, nie na twarde 1 (czyli "0%
+// pionu"), z tego samego powodu co niezerowa exitSpeedProfile: w chwili
+// puszczenia karta zwykle już trochę "jechała" w pionie za palcem (patrz
+// curveY w handleGestureEvent), więc pion od razu dostaje niewielki, ciągły
+// udział zamiast być na starcie sztucznie wyzerowany.
+// Tu, w przeciwieństwie do wjazdu, docelowe dystanse X/Y NIE są ustalone
+// niezależnie — liczy je performSwipe na podstawie rawTotal, żeby zachować
+// prawdziwy stosunek prędkości między osiami (patrz komentarz przy
+// buildAxisModel).
+const exitXModel = buildAxisModel(0.92, 0.25, 'x', exitSpeedProfile);
+const exitYModel = buildAxisModel(0.92, 0.25, 'y', exitSpeedProfile);
+const exitXEasing = exitXModel.easing;
+const exitYEasing = exitYModel.easing;
+
+// Cofnięcie (Cofnij): karta ma "wracać" z tej samej strony, w którą ją
+// pierwotnie przesunięto — czysto poziomy zjazd do środka, bez łuku pionowego.
+const UNDO_RETURN_DURATION = 260;
 
 interface UseCardSwipeAnimationArgs {
   areaSize: { width: number; height: number } | null;
@@ -90,42 +213,23 @@ export function useCardSwipeAnimation({ areaSize, cardHeight, onSwipeComplete, c
     // tint/stemple mają zostać wyłączone przez cały czas trwania tej animacji.
     tintEnabled.setValue(0);
 
-    const phase1Duration = ENTER_DURATION * ENTER_PHASE1_DURATION_RATIO;
-    const phase2Duration = ENTER_DURATION - phase1Duration;
-    // Faza 1: spada głównie pionowo "znad góry telefonu", X ledwo drgnie.
-    const phase1Y = startY + (0 - startY) * ENTER_PHASE1_Y_FRACTION;
-    const phase1X = startX + (0 - startX) * ENTER_PHASE1_X_FRACTION;
-
     Animated.parallel([
-      Animated.sequence([
-        Animated.timing(cardTranslateY, {
-          toValue: phase1Y,
-          duration: phase1Duration,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(cardTranslateY, {
-          toValue: 0,
-          duration: phase2Duration,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.timing(cardTranslateX, {
-          toValue: phase1X,
-          duration: phase1Duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        // Faza 2: proste się w ruch poziomy — X "dogania" do środka.
-        Animated.timing(cardTranslateX, {
-          toValue: 0,
-          duration: phase2Duration,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
+      // Pion i poziom sterowane wspólnym modelem udziału osi w prędkości
+      // (patrz komentarz przy buildAxisEasing) — na starcie ruch niemal w
+      // całości pionowy, z każdą chwilą coraz większy udział poziomu, aż do
+      // 75%/25% na końcu.
+      Animated.timing(cardTranslateY, {
+        toValue: 0,
+        duration: ENTER_DURATION,
+        easing: enterYEasing,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateX, {
+        toValue: 0,
+        duration: ENTER_DURATION,
+        easing: enterXEasing,
+        useNativeDriver: true,
+      }),
     ]).start(() => {
       isAnimatingRef.current = false;
       tintEnabled.setValue(1);
@@ -155,15 +259,6 @@ export function useCardSwipeAnimation({ areaSize, cardHeight, onSwipeComplete, c
     });
   };
 
-  // Czas wylotu liczony fizycznie: czas = dystans / prędkość gestu — im mocniej
-  // "rzucisz" kartę, tym szybciej realnie znika. Poziomy ruch (X) leci CIĄGLE
-  // przez cały ten czas, jednym płynnym ruchem, bez zatrzymywania się ani
-  // gwałtownego wygaszania tempa. RÓWNOLEGLE do niego dochodzi pionowy zjazd w
-  // dół w dwóch fazach (najpierw wolno, potem mocne przyspieszenie) — tak, jakby
-  // karta jednocześnie leciała w bok i znikała pod dolną krawędzią ekranu.
-  // Cel fazy pionowej liczony jest WZGLĘDEM aktualnej (żywej, z przeciągania)
-  // pozycji karty, nie od 0,0 — inaczej przy szybkim/dalekim geście mogłaby się
-  // "cofnąć" zanim ruszy dalej.
   const performSwipe = (
     direction: 'left' | 'right',
     startX: number,
@@ -175,43 +270,58 @@ export function useCardSwipeAnimation({ areaSize, cardHeight, onSwipeComplete, c
     isAnimatingRef.current = true;
     const offsetX = (areaSize?.width || 400) * EXIT_HORIZONTAL_RATIO;
     const offsetY = (areaSize?.height || 700) * EXIT_VERTICAL_RATIO;
-    const targetX = direction === 'left' ? -offsetX : offsetX;
-    const targetY = offsetY;
+    const minTargetX = direction === 'left' ? -offsetX : offsetX;
+    const minTargetY = offsetY;
+    // Cel animacji nie może być BLIŻEJ środka niż miejsce, w którym użytkownik
+    // faktycznie puścił kartę — w przeciwnym razie (przy bardzo mocnym
+    // przeciągnięciu, dalej niż standardowy dystans wyrzutu) Animated.timing
+    // animowałby WSTECZ, od bieżącej (dalszej) pozycji do bliższego celu, co
+    // wyglądało jak odbicie karty z powrotem na ekran. Cel zawsze co najmniej
+    // tak daleki jak pozycja puszczenia — animacja kontynuuje ruch w tym
+    // samym kierunku, nigdy go nie odwraca.
+    const minAbsTargetX = direction === 'left' ? Math.min(minTargetX, startX) : Math.max(minTargetX, startX);
+    const minAbsTargetY = Math.max(minTargetY, startY);
+    const neededDx = Math.abs(minAbsTargetX - startX);
+    const neededDy = Math.max(minAbsTargetY - startY, 0);
 
-    const distance = Math.hypot(offsetX, offsetY);
+    // X i Y mają z natury bardzo różne wymagane dystanse (patrz komentarz
+    // przy buildAxisModel) — jeden wspólny mnożnik "scale" rozciąga OBA
+    // dystanse tak, by żaden nie wypadł krócej niż potrzeba, zachowując przy
+    // tym dokładnie zaplanowany, rzeczywisty (w pikselach) stosunek prędkości
+    // między osiami przez całą animację. Oś, dla której to "trudniejszy"
+    // warunek (zwykle Y — dużo większy dystans), wyznacza tempo; druga
+    // (zwykle X) po prostu przeleci dalej niż jej minimalny wymagany dystans,
+    // co jest wizualnie niegroźne (dodatkowy margines poza ekranem).
+    const scale = Math.max(neededDx / exitXModel.rawTotal, neededDy / exitYModel.rawTotal);
+    const travelX = scale * exitXModel.rawTotal;
+    const travelY = scale * exitYModel.rawTotal;
+    const targetX = startX + (direction === 'left' ? -travelX : travelX);
+    const targetY = startY + travelY;
+
+    // Dystans i czas trwania liczone od RZECZYWISTEJ pozycji puszczenia karty
+    // do celu (nie od środka) — im dalej użytkownik już ją przeciągnął, tym
+    // krócej trwa dokończenie wyrzutu.
+    const distance = Math.hypot(targetX - startX, targetY - startY);
     const speed = Math.max(Math.hypot(velocityX, velocityY), FLING_MIN_SPEED);
     const duration = clamp((distance / speed) * 1000, MIN_EXIT_DURATION, MAX_EXIT_DURATION);
-    const phase1Duration = duration * EXIT_PHASE1_DURATION_RATIO;
-    const phase2Duration = duration - phase1Duration;
-    const phase1Y = startY + (targetY - startY) * EXIT_PHASE1_Y_FRACTION;
 
+    // Ten sam model udziału osi w prędkości co przy wjeździe (animateEntrance),
+    // tylko odwrócony: start niemal w całości poziomo, z każdą chwilą coraz
+    // większy udział pionu, aż do 75%/25% na końcu — w momencie, w którym
+    // karta w zasadzie znika z ekranu.
     Animated.parallel([
-      // Poziomy ruch NIE jest już dzielony na fazy ani wygaszany — płynie
-      // ciągle przez cały czas trwania animacji (lekko zwalniając pod koniec,
-      // naturalnie, jak przy rzucie), a nie "dogania" tylko resztkę dystansu
-      // w drugiej fazie. Pionowy zjazd w dół (faza 1 wolno, faza 2 mocne
-      // przyspieszenie) DOCHODZI do tego ruchu, zamiast go zastępować.
       Animated.timing(cardTranslateX, {
         toValue: targetX,
         duration,
-        easing: Easing.out(Easing.quad),
+        easing: exitXEasing,
         useNativeDriver: true,
       }),
-      Animated.sequence([
-        Animated.timing(cardTranslateY, {
-          toValue: phase1Y,
-          duration: phase1Duration,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        // Faza 2: przyspieszenie w dół, jakby karta "spadała" pod dolną krawędź.
-        Animated.timing(cardTranslateY, {
-          toValue: targetY,
-          duration: phase2Duration,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
+      Animated.timing(cardTranslateY, {
+        toValue: targetY,
+        duration,
+        easing: exitYEasing,
+        useNativeDriver: true,
+      }),
     ]).start(() => {
       onSwipeComplete(direction);
       animateEntrance(direction);

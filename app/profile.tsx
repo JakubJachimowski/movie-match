@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -6,6 +7,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -109,7 +111,20 @@ export default function ProfileScreen() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Twój profil</Text>
-        <View style={{ width: 26 }} />
+        <View style={styles.headerActionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/account')}
+          >
+            <Ionicons name="settings-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -346,7 +361,19 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   backArrow: { color: '#ECEEF2', fontSize: 29 },
-  headerTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold' },
+  headerTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold', flex: 1, textAlign: 'center' },
+  headerActionsRow: { flexDirection: 'row', gap: 8 },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionButtonPressed: { backgroundColor: '#0B0F17' },
 
   content: { alignItems: 'center', padding: 24 },
   avatarWrapper: { marginBottom: 10 },

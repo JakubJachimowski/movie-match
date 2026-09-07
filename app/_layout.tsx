@@ -56,18 +56,31 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ contentStyle: { backgroundColor: '#0B0F17' } }}>
+        {/* WAŻNE: bez jawnego animationDuration — customowy czas trwania wymusza
+            na Androidzie inną (najwyraźniej wadliwą przy POP/cofaniu) ścieżkę
+            animacji niż domyślna. Wcześniej TYLKO ekran "matched" miał ustawiony
+            animationDuration i TYLKO na nim występował ten błąd (ekran znika
+            natychmiast, granatowe puste tło, dopiero potem wjeżdża poprzedni
+            ekran); gdy w poprzedniej turze animationDuration trafił do WSZYSTKICH
+            ekranów, ten sam błąd zaczął występować wszędzie. Zostaje sama
+            animacja (typ), bez wymuszonego czasu trwania — powinno wrócić do
+            natywnej, poprawnej dwukierunkowej animacji. */}
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: '#0B0F17' },
+            animation: 'slide_from_right',
+            // Domyślnie wyłączone "zamrażanie" zasłoniętych ekranów — dotyczy
+            // głównie ekranu z zagnieżdżonym nawigatorem zakładek, zostawione na
+            // wszelki wypadek (nie zaszkodzi, nawet jeśli to nie ono było
+            // przyczyną problemu).
+            freezeOnBlur: false,
+          }}
+        >
           {/* Zalogowany i ma profil — normalna aplikacja. */}
           <Stack.Protected guard={isLoggedIn && hasProfile}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            {/* Dane dopasowań są teraz pobierane z wyprzedzeniem (patrz przycisk
-                "Match!'ed"), ale dajemy przejściu nieco więcej czasu niż domyślnie —
-                wolniejsza, wyraźna animacja zamiast ewentualnego "urwania" w połowie. */}
-            <Stack.Screen
-              name="matched"
-              options={{ headerShown: false, animation: 'slide_from_right', animationDuration: 480 }}
-            />
+            <Stack.Screen name="matched" options={{ headerShown: false }} />
             <Stack.Screen name="swipe" options={{ headerShown: false }} />
             <Stack.Screen name="account" options={{ headerShown: false }} />
             <Stack.Screen name="connections" options={{ headerShown: false }} />

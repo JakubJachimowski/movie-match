@@ -1,9 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -120,7 +122,20 @@ export default function FriendProfileScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           Profil znajomego
         </Text>
-        <View style={{ width: 26 }} />
+        <View style={styles.headerActionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
+            onPress={() => router.push('/account')}
+          >
+            <Ionicons name="settings-outline" size={18} color="#ECEEF2" />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -218,12 +233,27 @@ const styles = StyleSheet.create({
   },
   backArrow: { color: '#ECEEF2', fontSize: 26 },
   headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', flex: 1, textAlign: 'center' },
+  headerActionsRow: { flexDirection: 'row', gap: 8 },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#141A24',
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionButtonPressed: { backgroundColor: '#0B0F17' },
 
+  // Odstępy/rozmiary ujednolicone z app/profile.tsx (własny profil) —
+  // "profil znajomego" ma wyglądać identycznie pod względem rozłożenia
+  // przycisków, tylko z treścią tylko-do-odczytu.
   content: { alignItems: 'center', padding: 24 },
   hiddenAvatar: { opacity: 0 },
-  username: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold', marginTop: 10, marginBottom: 24 },
+  username: { color: '#ECEEF2', fontSize: 23, fontWeight: 'bold', marginTop: 10, marginBottom: 24 },
 
-  sectionTitle: { color: '#7C8798', fontSize: 13, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
+  sectionTitle: { color: '#7C8798', fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
   slotRow: { flexDirection: 'row', gap: 10, marginBottom: 16, width: '100%' },
   genreSlot: {
     flex: 1,
@@ -235,7 +265,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  genreSlotText: { color: '#ECEEF2', fontSize: 13, fontWeight: 'bold' },
+  genreSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
   movieSlot: {
     flex: 1,
     aspectRatio: 2 / 3,
@@ -248,10 +278,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   movieSlotPoster: { width: '100%', height: '100%' },
-  movieSlotText: { color: '#ECEEF2', fontSize: 13, fontWeight: 'bold' },
+  movieSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
 
   historyButton: {
-    marginTop: 12,
+    marginTop: 0,
+    marginBottom: 24,
     alignSelf: 'stretch',
     backgroundColor: '#141A24',
     borderWidth: 0.5,
@@ -260,7 +291,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  historyButtonText: { color: '#ECEEF2', fontSize: 15, fontWeight: 'bold' },
+  historyButtonText: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
 
   enlargeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1000, elevation: 1000 },
   enlargeBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
