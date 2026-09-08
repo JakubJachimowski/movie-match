@@ -249,6 +249,14 @@ function reverseEasing(easing: (t: number) => number) {
 // pewnego pełnego zejścia poza ekran, więc zostajemy przy 2.4.
 const LEAVING_EXIT_VERTICAL_RATIO = 2.4;
 
+// Przy WIĘKSZYM dystansie (patrz wyżej) i STAŁYM ENTER_DURATION końcówka
+// animacji stawała się na tyle szybka, że w praktyce niewidoczna — karta po
+// prostu znikała, zamiast dać się zobaczyć jak faktycznie ucieka z ekranu.
+// Czas trwania skalujemy więc o TEN SAM współczynnik co dystans, żeby
+// zachować podobne, widoczne tempo do zwykłego wjazdu/wyrzutu zamiast po
+// prostu przyspieszać ruch na tym samym, krótkim czasie.
+const LEAVING_EXIT_DURATION = Math.round(ENTER_DURATION * (LEAVING_EXIT_VERTICAL_RATIO / ENTER_VERTICAL_RATIO));
+
 interface ExitHistoryEntry {
   targetX: number;
   targetY: number;
@@ -488,13 +496,13 @@ export function useCardSwipeAnimation({ areaSize, cardHeight, onSwipeComplete, c
         Animated.parallel([
           Animated.timing(leavingCardTranslateX, {
             toValue: outTargetX,
-            duration: ENTER_DURATION,
+            duration: LEAVING_EXIT_DURATION,
             easing: reverseEasing(enterXEasing),
             useNativeDriver: true,
           }),
           Animated.timing(leavingCardTranslateY, {
             toValue: outTargetY,
-            duration: ENTER_DURATION,
+            duration: LEAVING_EXIT_DURATION,
             easing: reverseEasing(enterYEasing),
             useNativeDriver: true,
           }),
@@ -517,7 +525,7 @@ export function useCardSwipeAnimation({ areaSize, cardHeight, onSwipeComplete, c
         setTimeout(() => {
           leavingOpacity.setValue(0);
           onOutgoingCardExitComplete();
-        }, ENTER_DURATION + 40);
+        }, LEAVING_EXIT_DURATION + 40);
       }
 
       // -- Część 2: karta cofana wraca (odtworzenie ostatniego wyrzutu wstecz) --
