@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -33,6 +33,10 @@ export default function ConnectionsScreen() {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Zastępuje poprzednie natywne Alert.alert('Połączono!', ...) — wyglądało
+  // jak systemowy popup, niespójnie z resztą appki. Teraz to ten sam wzorzec
+  // modala co potwierdzenie wylogowania/usunięcia znajomego.
+  const [connectedModalVisible, setConnectedModalVisible] = useState(false);
 
   useEffect(() => {
     fetchConnections();
@@ -70,7 +74,7 @@ export default function ConnectionsScreen() {
     try {
       await acceptInvite(joinCode.trim());
       setJoinCode('');
-      Alert.alert('Połączono!', 'Nowy znajomy został dodany.');
+      setConnectedModalVisible(true);
     } catch (e: any) {
       setError(e?.message ?? 'Nie udało się połączyć — sprawdź kod.');
     } finally {
@@ -134,6 +138,35 @@ export default function ConnectionsScreen() {
           {joining ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Połącz</Text>}
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={connectedModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setConnectedModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setConnectedModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
+            <Image
+              source={require('../assets/background/maintenace_background.png')}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
+            <View style={styles.modalOverlayTint} />
+
+            <Text style={styles.modalTitle}>Połączono!</Text>
+            <Text style={styles.modalMessage}>Nowy znajomy został dodany.</Text>
+
+            <TouchableOpacity style={styles.modalOkButton} onPress={() => setConnectedModalVisible(false)}>
+              <Text style={styles.modalOkButtonText}>Super</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -196,4 +229,21 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: '#ECEEF2', fontWeight: 'bold' },
   primaryButton: { backgroundColor: '#4a7', borderRadius: 30, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: 'bold' },
+
+  // Ten sam wzorzec modala co potwierdzenie wylogowania (account.tsx) i
+  // usunięcia znajomego (friends.tsx) — tło appki + przyciemnienie + karta,
+  // zamiast natywnego, systemowego Alert.alert.
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 24 },
+  modalContent: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 24,
+    borderWidth: 0.5,
+    borderColor: '#7C8798',
+  },
+  modalOverlayTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(30,29,24,0.88)' },
+  modalTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  modalMessage: { color: '#7C8798', fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  modalOkButton: { backgroundColor: '#4a7', borderRadius: 30, paddingVertical: 12, alignItems: 'center' },
+  modalOkButtonText: { color: '#fff', fontWeight: 'bold' },
 });

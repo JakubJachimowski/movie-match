@@ -3,11 +3,13 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { Partner, useConnectionsStore } from '../store/useConnectionsStore';
 
 export default function FriendsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const partners = useConnectionsStore((s) => s.partners);
   const activeConnectionId = useConnectionsStore((s) => s.activeConnectionId);
   const loading = useConnectionsStore((s) => s.loading);
@@ -109,6 +111,17 @@ export default function FriendsScreen() {
         )}
       </View>
 
+      <View style={styles.spacer} />
+
+      {/* Ta sama pozycja co "Wyloguj się" w Ustawieniach (account.tsx): spacer
+          nad przyciskiem, marginBottom uwzględniający bezpieczny obszar. */}
+      <TouchableOpacity
+        style={[styles.addFriendButton, { marginBottom: insets.bottom + 16 }]}
+        onPress={() => router.push('/connections')}
+      >
+        <Text style={styles.addFriendButtonText}>Dodaj znajomego</Text>
+      </TouchableOpacity>
+
       <Modal
         visible={!!deleteTarget}
         animationType="fade"
@@ -169,6 +182,16 @@ const styles = StyleSheet.create({
 
   content: { padding: 20 },
   emptyText: { color: '#7C8798', fontSize: 14, lineHeight: 20 },
+
+  spacer: { flex: 1, minHeight: 24, width: '100%' },
+  addFriendButton: {
+    backgroundColor: '#4a7',
+    borderRadius: 30,
+    paddingVertical: 14,
+    marginHorizontal: 20,
+    alignItems: 'center',
+  },
+  addFriendButtonText: { color: '#fff', fontWeight: 'bold' },
 
   // Trzy oddzielne panele w jednym wierszu: avatar+nick / wybierz-aktywny / usuń.
   // Razem zajmują tyle samo miejsca, co dawny pojedynczy, ciągły wiersz.

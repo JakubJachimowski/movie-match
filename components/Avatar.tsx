@@ -11,7 +11,7 @@ export const AVATAR_ASSET_PREFIX = 'asset:';
 
 export const AVATAR_COLOR_OPTIONS = ['#E07A5F', '#4AA785', '#E8A33D', '#5B7DB1', '#9B6BB3'];
 
-// require() musi dostać statyczny literał — stąd mapa 1..5 zamiast dynamicznego
+// require() musi dostać statyczny literał — stąd mapa 1..12 zamiast dynamicznego
 // ścieżkowania po numerze.
 const AVATAR_ASSET_SOURCES: Record<string, ReturnType<typeof require>> = {
   '1': require('../assets/avatars/avatar_1.png'),
@@ -19,6 +19,13 @@ const AVATAR_ASSET_SOURCES: Record<string, ReturnType<typeof require>> = {
   '3': require('../assets/avatars/avatar_3.png'),
   '4': require('../assets/avatars/avatar_4.png'),
   '5': require('../assets/avatars/avatar_5.png'),
+  '6': require('../assets/avatars/avatar_6.png'),
+  '7': require('../assets/avatars/avatar_7.png'),
+  '8': require('../assets/avatars/avatar_8.png'),
+  '9': require('../assets/avatars/avatar_9.png'),
+  '10': require('../assets/avatars/avatar_10.png'),
+  '11': require('../assets/avatars/avatar_11.png'),
+  '12': require('../assets/avatars/avatar_12.png'),
 };
 
 export const AVATAR_ASSET_OPTIONS = Object.keys(AVATAR_ASSET_SOURCES).map((id) => ({

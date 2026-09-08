@@ -1,24 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { Avatar, assetSourceFromAvatar, colorFromAvatar, isAssetAvatar, isColorAvatar } from '../../components/Avatar';
+import { AvatarZoom } from '../../components/AvatarZoom';
 import { GENRES } from '../../constants/genres';
 import { supabase } from '../../lib/supabase';
 import { FavoriteMovie } from '../../store/useAuthStore';
 
 const AVATAR_BASE_SIZE = 110;
-const FAVORITE_SLOTS = [0, 1, 2];
+// Dwa sloty na ulubione gatunki (poprzednio trzy) — filmy zostają przy trzech,
+// tak samo jak we własnym profilu (app/profile.tsx).
+const GENRE_SLOTS = [0, 1];
+const MOVIE_SLOTS = [0, 1, 2];
 
 interface FriendProfileRow {
   favorite_genres: number[] | null;
@@ -27,8 +28,9 @@ interface FriendProfileRow {
 
 // Profil znajomego — lustrzane odbicie własnego profilu (app/profile.tsx), tylko
 // do odczytu: ulubione gatunki i filmy tak, jak je ustawił znajomy. Avatar tutaj
-// (nie na ekranie historii przesunięć) rozsuwa się po tapnięciu do 3/4 szerokości
-// ekranu, wyśrodkowany, górna krawędź zakotwiczona w miejscu startowym.
+// (nie na ekranie historii przesunięć) po dotknięciu płynnie przesuwa się na
+// środek ekranu i rośnie do 90% jego szerokości — dokładnie ta sama animacja
+// (współdzielony komponent AvatarZoom) co we własnym profilu.
 export default function FriendProfileScreen() {
   const router = useRouter();
   const { connectionId, partnerId, username, avatarUrl } = useLocalSearchParams<{
@@ -61,43 +63,8 @@ export default function FriendProfileScreen() {
     };
   }, [partnerId]);
 
-  const favoriteGenres = FAVORITE_SLOTS.map((i) => profile?.favorite_genres?.[i] ?? null);
-  const favoriteMovies = FAVORITE_SLOTS.map((i) => profile?.favorite_movies?.[i] ?? null);
-
-  // Powiększanie avatara do 3/4 szerokości ekranu (nie na całą, jak wcześniej
-  // na ekranie historii) — ta sama animacja "wzrostu od zakotwiczonej góry".
-  const { width: screenWidth } = useWindowDimensions();
-  const avatarAnchorRef = useRef<View>(null);
-  const [enlarged, setEnlarged] = useState(false);
-  const [overlayMounted, setOverlayMounted] = useState(false);
-  const [origin, setOrigin] = useState({ x: 0, y: 0, size: AVATAR_BASE_SIZE });
-  const progress = useRef(new Animated.Value(0)).current;
-
-  const targetSize = screenWidth * 0.75;
-  const targetX = (screenWidth - targetSize) / 2;
-
-  const overlaySize = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.size, targetSize] });
-  const overlayRadius = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.size / 2, targetSize / 2] });
-  const overlayLeft = progress.interpolate({ inputRange: [0, 1], outputRange: [origin.x, targetX] });
-  const backdropOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.75] });
-
-  const toggleAvatarSize = () => {
-    if (enlarged) {
-      setEnlarged(false);
-      Animated.spring(progress, { toValue: 0, friction: 8, useNativeDriver: false }).start(() => {
-        setOverlayMounted(false);
-      });
-    } else {
-      avatarAnchorRef.current?.measureInWindow((x, y, width) => {
-        setOrigin({ x, y, size: width || AVATAR_BASE_SIZE });
-        setOverlayMounted(true);
-        setEnlarged(true);
-        requestAnimationFrame(() => {
-          Animated.spring(progress, { toValue: 1, friction: 8, useNativeDriver: false }).start();
-        });
-      });
-    }
-  };
+  const favoriteGenres = GENRE_SLOTS.map((i) => profile?.favorite_genres?.[i] ?? null);
+  const favoriteMovies = MOVIE_SLOTS.map((i) => profile?.favorite_movies?.[i] ?? null);
 
   const goToHistory = () => {
     router.push({
@@ -119,9 +86,6 @@ export default function FriendProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Profil znajomego
-        </Text>
         <View style={styles.headerActionsRow}>
           <Pressable
             style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
@@ -139,11 +103,11 @@ export default function FriendProfileScreen() {
       </View>
 
       <View style={styles.content}>
-        <TouchableOpacity activeOpacity={1} onPress={toggleAvatarSize}>
-          <View ref={avatarAnchorRef} style={overlayMounted ? styles.hiddenAvatar : undefined}>
-            <Avatar url={avatarUrl} size={AVATAR_BASE_SIZE} fallbackLetter={username} />
-          </View>
-        </TouchableOpacity>
+        {/* Tytuł wyśrodkowany na ekranie, nad avatarem — tak samo jak we
+            własnym profilu, zamiast w wąskim pasku nagłówka. */}
+        <Text style={styles.screenTitle}>Profil znajomego</Text>
+
+        <AvatarZoom url={avatarUrl} size={AVATAR_BASE_SIZE} fallbackLetter={username} />
         <Text style={styles.username}>{username ?? '...'}</Text>
 
         <TouchableOpacity style={styles.historyButton} onPress={goToHistory}>
@@ -156,7 +120,7 @@ export default function FriendProfileScreen() {
           <>
             <Text style={styles.sectionTitle}>Ulubione gatunki</Text>
             <View style={styles.slotRow}>
-              {FAVORITE_SLOTS.map((slot) => {
+              {GENRE_SLOTS.map((slot) => {
                 const genre = GENRES.find((g) => g.id === favoriteGenres[slot]);
                 return (
                   <View key={slot} style={styles.genreSlot}>
@@ -170,7 +134,7 @@ export default function FriendProfileScreen() {
 
             <Text style={styles.sectionTitle}>Ulubione filmy</Text>
             <View style={styles.slotRow}>
-              {FAVORITE_SLOTS.map((slot) => {
+              {MOVIE_SLOTS.map((slot) => {
                 const movie = favoriteMovies[slot];
                 return (
                   <View key={slot} style={styles.movieSlot}>
@@ -186,36 +150,6 @@ export default function FriendProfileScreen() {
           </>
         )}
       </View>
-
-      {overlayMounted && (
-        <TouchableOpacity activeOpacity={1} style={styles.enlargeOverlay} onPress={toggleAvatarSize}>
-          <Animated.View style={[styles.enlargeBackdrop, { opacity: backdropOpacity }]} />
-          <Animated.View
-            style={[
-              styles.enlargedAvatarFrame,
-              {
-                top: origin.y,
-                left: overlayLeft,
-                width: overlaySize,
-                height: overlaySize,
-                borderRadius: overlayRadius,
-              },
-            ]}
-          >
-            {isAssetAvatar(avatarUrl) ? (
-              <Image source={assetSourceFromAvatar(avatarUrl as string)} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : isColorAvatar(avatarUrl) ? (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: colorFromAvatar(avatarUrl as string) }]} />
-            ) : avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, styles.enlargedPlaceholder]}>
-                <Text style={styles.enlargedPlaceholderText}>{(username ?? '?').slice(0, 1).toUpperCase()}</Text>
-              </View>
-            )}
-          </Animated.View>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -232,7 +166,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   backArrow: { color: '#ECEEF2', fontSize: 26 },
-  headerTitle: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold', flex: 1, textAlign: 'center' },
   headerActionsRow: { flexDirection: 'row', gap: 8 },
   headerActionButton: {
     width: 36,
@@ -250,7 +183,7 @@ const styles = StyleSheet.create({
   // "profil znajomego" ma wyglądać identycznie pod względem rozłożenia
   // przycisków, tylko z treścią tylko-do-odczytu.
   content: { alignItems: 'center', padding: 24 },
-  hiddenAvatar: { opacity: 0 },
+  screenTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
   username: { color: '#ECEEF2', fontSize: 23, fontWeight: 'bold', marginTop: 10, marginBottom: 24 },
 
   sectionTitle: { color: '#7C8798', fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
@@ -280,28 +213,19 @@ const styles = StyleSheet.create({
   movieSlotPoster: { width: '100%', height: '100%' },
   movieSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
 
+  // Szerokość dopasowana do treści (niewiele szerszy niż sam napis), tak samo
+  // jak we własnym profilu — zamiast rozciągania na całą szerokość ekranu.
   historyButton: {
     marginTop: 0,
     marginBottom: 24,
-    alignSelf: 'stretch',
+    alignSelf: 'center',
     backgroundColor: '#141A24',
     borderWidth: 0.5,
     borderColor: '#7C8798',
     borderRadius: 18,
     paddingVertical: 14,
+    paddingHorizontal: 28,
     alignItems: 'center',
   },
   historyButtonText: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
-
-  enlargeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1000, elevation: 1000 },
-  enlargeBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
-  enlargedAvatarFrame: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: '#7C8798',
-    backgroundColor: '#141A24',
-  },
-  enlargedPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  enlargedPlaceholderText: { color: '#ECEEF2', fontWeight: 'bold', fontSize: 72 },
 });

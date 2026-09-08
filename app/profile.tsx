@@ -14,13 +14,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Avatar, AVATAR_ASSET_OPTIONS } from '../components/Avatar';
+import { Avatar } from '../components/Avatar';
+import { AvatarPickerModal } from '../components/AvatarPickerModal';
+import { AvatarZoom } from '../components/AvatarZoom';
 import { GENRES } from '../constants/genres';
 import { MovieSearchResult, searchMovies } from '../services/tmdb';
 import { FavoriteMovie, useAuthStore } from '../store/useAuthStore';
 import { useConnectionsStore } from '../store/useConnectionsStore';
 
-const FAVORITE_SLOTS = [0, 1, 2];
+// Dwa sloty na ulubione gatunki (poprzednio trzy) — filmy zostają przy trzech.
+const GENRE_SLOTS = [0, 1];
+const MOVIE_SLOTS = [0, 1, 2];
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -30,7 +34,7 @@ export default function ProfileScreen() {
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const activeConnectionId = useConnectionsStore((s) => s.activeConnectionId);
 
-  const [favoriteGenres, setFavoriteGenres] = useState<(number | null)[]>([null, null, null]);
+  const [favoriteGenres, setFavoriteGenres] = useState<(number | null)[]>([null, null]);
   const [favoriteMovies, setFavoriteMovies] = useState<(FavoriteMovie | null)[]>([null, null, null]);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
@@ -39,8 +43,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!profile) return;
-    const genres = [0, 1, 2].map((i) => profile.favorite_genres?.[i] ?? null);
-    const movies = [0, 1, 2].map((i) => profile.favorite_movies?.[i] ?? null);
+    const genres = GENRE_SLOTS.map((i) => profile.favorite_genres?.[i] ?? null);
+    const movies = MOVIE_SLOTS.map((i) => profile.favorite_movies?.[i] ?? null);
     setFavoriteGenres(genres);
     setFavoriteMovies(movies);
   }, [profile]);
@@ -110,7 +114,6 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={36}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Twój profil</Text>
         <View style={styles.headerActionsRow}>
           <Pressable
             style={({ pressed }) => [styles.headerActionButton, pressed && styles.headerActionButtonPressed]}
@@ -128,26 +131,36 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.content}>
-        <TouchableOpacity style={styles.avatarWrapper} onPress={() => setAvatarModalVisible(true)}>
-          <Avatar url={profile?.avatar_url} size={110} fallbackLetter={profile?.username} />
-          <View style={styles.avatarEditBadge}>
-            <Text style={styles.avatarEditBadgeText}>Zmień</Text>
-          </View>
+        {/* Tytuł wyśrodkowany na ekranie, nad avatarem (poprzednio w wierszu
+            nagłówka obok strzałki i przycisków). */}
+        <Text style={styles.screenTitle}>Twój profil</Text>
+
+        {/* Dotknięcie avatara płynnie powiększa go na środku ekranu (AvatarZoom,
+            wspólne z profilem znajomego); "Zmień" to osobny przycisk pod spodem,
+            otwierający wybór avatara. */}
+        <AvatarZoom url={profile?.avatar_url} size={110} fallbackLetter={profile?.username} />
+        <TouchableOpacity style={styles.avatarEditBadge} onPress={() => setAvatarModalVisible(true)}>
+          <Text style={styles.avatarEditBadgeText}>Zmień</Text>
         </TouchableOpacity>
         <Text style={styles.username}>{profile?.username ?? '...'}</Text>
 
-        <TouchableOpacity style={styles.historyButton} onPress={goToHistory}>
-          <Text style={styles.historyButtonText}>Historia</Text>
-        </TouchableOpacity>
+        <View style={styles.topButtonRow}>
+          <TouchableOpacity style={styles.historyButton} onPress={goToHistory}>
+            <Text style={styles.historyButtonText}>Historia</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.historyButton} onPress={() => router.push('/friends')}>
+            <Text style={styles.historyButtonText}>Znajomi</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionTitle}>Ulubione gatunki</Text>
         <View style={styles.slotRow}>
-          {FAVORITE_SLOTS.map((slot) => {
+          {GENRE_SLOTS.map((slot) => {
             const genreId = favoriteGenres[slot];
             const genre = GENRES.find((g) => g.id === genreId);
             return (
               <TouchableOpacity key={slot} style={styles.genreSlot} onPress={() => setGenreSlot(slot)}>
-                <Text style={styles.genreSlotText} numberOfLines={1}>
+                <Text style={[styles.genreSlotText, !genre && styles.slotPlaceholderText]} numberOfLines={1}>
                   {genre ? genre.name : '+ Dodaj'}
                 </Text>
               </TouchableOpacity>
@@ -157,7 +170,7 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionTitle}>Ulubione filmy</Text>
         <View style={styles.slotRow}>
-          {FAVORITE_SLOTS.map((slot) => {
+          {MOVIE_SLOTS.map((slot) => {
             const movie = favoriteMovies[slot];
             return (
               <View key={slot} style={styles.movieSlotColumn}>
@@ -165,7 +178,7 @@ export default function ProfileScreen() {
                   {movie?.image ? (
                     <Image source={{ uri: movie.image }} style={styles.movieSlotPoster} contentFit="cover" />
                   ) : (
-                    <Text style={styles.movieSlotText}>+ Dodaj</Text>
+                    <Text style={[styles.movieSlotText, styles.slotPlaceholderText]}>+ Dodaj</Text>
                   )}
                 </TouchableOpacity>
                 {movie?.title ? (
@@ -179,24 +192,15 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Wybór avatara: 5 kolorowych placeholderów + upload własnego zdjęcia */}
-      <Modal visible={avatarModalVisible} transparent animationType="fade" onRequestClose={() => setAvatarModalVisible(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAvatarModalVisible(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Wybierz avatar</Text>
-            <View style={styles.colorRow}>
-              {AVATAR_ASSET_OPTIONS.map((opt) => (
-                <TouchableOpacity key={opt.id} style={styles.avatarSwatch} onPress={() => pickAssetAvatar(opt.value)}>
-                  <Image source={opt.source} style={styles.avatarSwatchImage} contentFit="cover" />
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickPhotoAvatar} disabled={avatarSaving}>
-              {avatarSaving ? <ActivityIndicator color="#0B0F17" /> : <Text style={styles.uploadButtonText}>Prześlij zdjęcie</Text>}
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      {/* Wybór avatara: 12 gotowych avatarów (3 ekrany po 4, przewijane strzałkami)
+          + upload własnego zdjęcia — wspólny komponent z onboarding.tsx. */}
+      <AvatarPickerModal
+        visible={avatarModalVisible}
+        onClose={() => setAvatarModalVisible(false)}
+        onPickAsset={pickAssetAvatar}
+        onPickPhoto={pickPhotoAvatar}
+        photoSaving={avatarSaving}
+      />
 
       {/* Wybór ulubionego gatunku dla danego slotu */}
       <Modal visible={genreSlot !== null} transparent animationType="fade" onRequestClose={() => setGenreSlot(null)}>
@@ -204,21 +208,30 @@ export default function ProfileScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalTitle}>Wybierz gatunek</Text>
             <View style={styles.genreGrid}>
-              {GENRES.map((g) => (
-                <TouchableOpacity
-                  key={g.id}
-                  style={styles.genreGridTile}
-                  onPress={() => {
-                    if (genreSlot === null) return;
-                    const next = [...favoriteGenres];
-                    next[genreSlot] = g.id;
-                    persistGenres(next);
-                    setGenreSlot(null);
-                  }}
-                >
-                  <Text style={styles.genreGridTileText}>{g.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {GENRES.map((g) => {
+                // Gwiazdka przy gatunku już oznaczonym jako ulubiony
+                // (w KTÓRYMKOLWIEK slocie) — widoczna tu, w miejscu wyboru,
+                // żeby było od razu widać, co już jest ulubione.
+                const isFavorite = favoriteGenres.includes(g.id);
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={styles.genreGridTile}
+                    onPress={() => {
+                      if (genreSlot === null) return;
+                      const next = [...favoriteGenres];
+                      next[genreSlot] = g.id;
+                      persistGenres(next);
+                      setGenreSlot(null);
+                    }}
+                  >
+                    {isFavorite && (
+                      <Ionicons name="star" size={14} color="#EAC998" style={styles.genreGridTileStar} />
+                    )}
+                    <Text style={styles.genreGridTileText}>{g.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             {genreSlot !== null && favoriteGenres[genreSlot] !== null && (
               <TouchableOpacity
@@ -361,7 +374,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   backArrow: { color: '#ECEEF2', fontSize: 29 },
-  headerTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold', flex: 1, textAlign: 'center' },
   headerActionsRow: { flexDirection: 'row', gap: 8 },
   headerActionButton: {
     width: 36,
@@ -376,33 +388,41 @@ const styles = StyleSheet.create({
   headerActionButtonPressed: { backgroundColor: '#0B0F17' },
 
   content: { alignItems: 'center', padding: 24 },
-  avatarWrapper: { marginBottom: 10 },
+  // Wyśrodkowany na ekranie tytuł, nad avatarem — przeniesiony z wiersza
+  // nagłówka, żeby był naprawdę centralny, nie tylko w wąskim pasku między
+  // strzałką a przyciskami.
+  screenTitle: { color: '#ECEEF2', fontSize: 21, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
+  // Ten sam wygląd co poprzednio (nakładka na avatarze), tylko przeniesiony
+  // pod zdjęcie jako osobny, samodzielny przycisk — dotknięcie samego avatara
+  // teraz go powiększa zamiast otwierać wybór.
   avatarEditBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
+    alignSelf: 'center',
     backgroundColor: 'rgba(0,0,0,0.7)',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    marginTop: 10,
+    marginBottom: 10,
   },
   avatarEditBadgeText: { color: '#ECEEF2', fontSize: 13, fontWeight: 'bold' },
   username: { color: '#ECEEF2', fontSize: 23, fontWeight: 'bold', marginBottom: 24 },
 
+  // Historia i Znajomi obok siebie, tego samego rozmiaru — wyśrodkowany
+  // wiersz zamiast pojedynczego przycisku na środku.
+  topButtonRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   historyButton: {
-    alignSelf: 'stretch',
-    marginBottom: 24,
     backgroundColor: '#141A24',
     borderWidth: 0.5,
     borderColor: '#7C8798',
     borderRadius: 18,
     paddingVertical: 14,
+    paddingHorizontal: 28,
     alignItems: 'center',
   },
   historyButtonText: { color: '#ECEEF2', fontSize: 18, fontWeight: 'bold' },
 
-  sectionTitle: { color: '#7C8798', fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, marginTop: 8 },
-  slotRow: { flexDirection: 'row', gap: 10, marginBottom: 16, width: '100%' },
+  sectionTitle: { color: '#7C8798', fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 6, marginTop: 4 },
+  slotRow: { flexDirection: 'row', gap: 10, marginBottom: 12, width: '100%' },
   genreSlot: {
     flex: 1,
     backgroundColor: '#141A24',
@@ -414,6 +434,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   genreSlotText: { color: '#ECEEF2', fontSize: 16, fontWeight: 'bold' },
+  // "+ Dodaj" (jeszcze nie wybrano) ma być wyraźnie odróżnione (szare) od
+  // rzeczywistej nazwy wybranej kategorii/filmu (jasny #ECEEF2).
+  slotPlaceholderText: { color: '#7C8798' },
   movieSlotColumn: { flex: 1 },
   movieSlot: {
     width: '100%',
@@ -440,11 +463,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: { color: '#ECEEF2', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
 
-  colorRow: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 18 },
-  avatarSwatch: { width: 44, height: 44, borderRadius: 22, borderWidth: 0.5, borderColor: '#7C8798', overflow: 'hidden' },
-  avatarSwatchImage: { width: '100%', height: '100%' },
-  uploadButton: { backgroundColor: '#ECEEF2', borderRadius: 30, paddingVertical: 12, alignItems: 'center' },
-  uploadButtonText: { color: '#0B0F17', fontWeight: 'bold' },
 
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   genreGridTile: {
@@ -459,6 +477,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   genreGridTileText: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold' },
+  // Gwiazdka ulubionego — w rogu kafelka, nie zajmuje miejsca w treści.
+  genreGridTileStar: { position: 'absolute', top: 6, right: 8 },
 
   clearButton: { marginTop: 10, alignItems: 'center', paddingVertical: 8 },
   clearButtonText: { color: '#E07A5F', fontWeight: 'bold' },

@@ -10,6 +10,9 @@ export interface Partner {
   partnerId: string;
   username: string;
   avatarUrl: string | null;
+  // Ulubione gatunki znajomego — używane m.in. do pokazania konturu gwiazdki
+  // przy odpowiedniej kategorii na ekranie głównym (app/(tabs)/index.tsx).
+  favoriteGenres: number[];
 }
 
 export interface PendingInvite {
@@ -53,11 +56,11 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
 
       const partnerIds = accepted.map((r) => (r.user_a === myId ? r.user_b : r.user_a)).filter(Boolean) as string[];
 
-      let profilesById: Record<string, { username: string; avatar_url: string | null }> = {};
+      let profilesById: Record<string, { username: string; avatar_url: string | null; favorite_genres: number[] | null }> = {};
       if (partnerIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url')
+          .select('id, username, avatar_url, favorite_genres')
           .in('id', partnerIds);
         if (profilesError) throw profilesError;
         profilesById = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
@@ -71,6 +74,7 @@ export const useConnectionsStore = create<ConnectionsStore>()((set, get) => ({
           partnerId,
           username: profile?.username ?? '(nieznany)',
           avatarUrl: profile?.avatar_url ?? null,
+          favoriteGenres: profile?.favorite_genres ?? [],
         };
       });
 

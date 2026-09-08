@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/store/useAuthStore';
+import { AvatarZoomOverlay } from '../components/AvatarZoomOverlay';
 
 // Tło natywnego okna (widoczne pod spodem podczas przejść między ekranami) —
 // bez tego, na urządzeniach w jasnym motywie systemowym, w trakcie animacji
@@ -103,6 +104,12 @@ export default function RootLayout() {
           </Stack.Protected>
         </Stack>
         <StatusBar style="auto" />
+        {/* Montowane RAZ, na samej górze drzewa — czyli w TYM SAMYM oknie
+            systemowym co wszystkie ekrany (żadnego <Modal>). Dzięki temu
+            measureInWindow() na miniaturce avatara (gdziekolwiek w appce) i
+            measureInWindow()/pozycja tego overlaya zawsze są w tym samym
+            układzie współrzędnych — patrz store/useAvatarZoomStore.ts. */}
+        <AvatarZoomOverlay />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

@@ -177,6 +177,11 @@ export default function Home() {
   };
 
   const activePartner = partners.find((p) => p.connectionId === activeConnectionId);
+  // Wypełniona gwiazdka = mój ulubiony gatunek, kontur = ulubiony gatunek
+  // aktywnego znajomego — pokazywane przy wyborze kategorii (przycisk gatunku
+  // i lista "Wybierz kategorię"), tak jak w Twój profil.
+  const myFavoriteGenreIds = profile?.favorite_genres ?? [];
+  const partnerFavoriteGenreIds = activePartner?.favoriteGenres ?? [];
 
   // Losowa strona (lewa/prawa) dla "moje" vs "znajomego" — bez stałej reguły kto
   // gdzie. Losowane raz na wejście na ekran (montaż komponentu).
@@ -496,6 +501,12 @@ export default function Home() {
               onPress={() => setGridVisible(true)}
               {...panResponder.panHandlers}
             >
+              {myFavoriteGenreIds.includes(currentGenre.id) && (
+                <Ionicons name="star" size={14} color="#EAC998" style={styles.categoryStarMine} />
+              )}
+              {partnerFavoriteGenreIds.includes(currentGenre.id) && (
+                <Ionicons name="star-outline" size={14} color="#EAC998" style={styles.categoryStarPartner} />
+              )}
               <Text style={styles.categoryNameText} numberOfLines={1}>
                 {currentGenre.name}
               </Text>
@@ -544,6 +555,12 @@ export default function Home() {
               <View key={idx} style={styles.gridRow}>
                 {row.map((genre) => (
                   <TouchableOpacity activeOpacity={1} key={genre.id} style={styles.gridTile} onPress={() => selectGenre(genre)}>
+                    {myFavoriteGenreIds.includes(genre.id) && (
+                      <Ionicons name="star" size={14} color="#EAC998" style={styles.gridTileStarMine} />
+                    )}
+                    {partnerFavoriteGenreIds.includes(genre.id) && (
+                      <Ionicons name="star-outline" size={14} color="#EAC998" style={styles.gridTileStarPartner} />
+                    )}
                     <Text style={styles.gridTileText}>{genre.name}</Text>
                   </TouchableOpacity>
                 ))}
@@ -631,6 +648,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   categoryNameText: { color: '#ECEEF2', fontSize: CATEGORY_FONT_SIZE, fontWeight: 'bold' },
+  // Wypełniona = mój ulubiony gatunek, kontur = ulubiony znajomego — w
+  // rogach przycisku, nie wpływają na wyliczoną szerokość pigułki.
+  categoryStarMine: { position: 'absolute', top: 6, left: 8 },
+  categoryStarPartner: { position: 'absolute', top: 6, right: 8 },
 
   // Bez bottom:0 — wysokość dopasowuje się do treści (napis + przycisk +
   // drugi napis), pozycjonowana wyłącznie przez "top" (patrz JSX), symetrycznie
@@ -685,5 +706,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  gridTileStarMine: { position: 'absolute', top: 6, left: 8 },
+  gridTileStarPartner: { position: 'absolute', top: 6, right: 8 },
   gridTileText: { color: '#ECEEF2', fontSize: 15, fontWeight: 'bold' },
 });
