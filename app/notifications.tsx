@@ -88,7 +88,7 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground7.png')}
+        source={require('../assets/background/maintenace_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />

@@ -258,7 +258,7 @@ export default function Swipe() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Image
-        source={require('../assets/images/moviematchbackground3.png')}
+        source={require('../assets/background/swipe_screen_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />

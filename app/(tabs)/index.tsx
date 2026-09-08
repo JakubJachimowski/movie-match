@@ -59,6 +59,14 @@ const HINT_GAP = 14;
 // Punkt odniesienia = granica (środek przerwy) między pigułką Znajomi a Match!'ed.
 const OFFSET_TO_STACK_BOUNDARY = STACK_PILL_HEIGHT + STACK_GAP / 2;
 
+// Grafiki przycisku "rozpocznij swipe" — jedna losowana przy starcie aplikacji
+// (raz na uruchomienie, nie przy każdym renderze/zmianie kategorii).
+const SWIPE_BUTTON_IMAGES = [
+  require('../../assets/buttons/button_1.png'),
+  require('../../assets/buttons/button_2.png'),
+  require('../../assets/buttons/button_3.png'),
+];
+
 // Float avatarów: bazowa prędkość (czas jednej "połówki" ruchu góra/dół) i zasięg.
 const BASE_FLOAT_DURATION = 3200;
 const BASE_FLOAT_AMPLITUDE = 7;
@@ -283,6 +291,12 @@ export default function Home() {
   const matchPress = usePressScale();
   const swipeBtnPress = usePressScale();
 
+  // Losowana raz na uruchomienie aplikacji (montaż tego ekranu) — nie zmienia
+  // się przy kolejnych renderach ani przy zmianie wybranej kategorii.
+  const [swipeButtonImage] = useState(
+    () => SWIPE_BUTTON_IMAGES[Math.floor(Math.random() * SWIPE_BUTTON_IMAGES.length)]
+  );
+
   const goToSwipe = () => {
     router.push({ pathname: '/swipe', params: { genreId: currentGenre.id, genreName: currentGenre.name } });
   };
@@ -373,7 +387,7 @@ export default function Home() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/images/moviematchbackground5.png')}
+        source={require('../../assets/background/main_screen_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -515,8 +529,7 @@ export default function Home() {
               onPressIn={swipeBtnPress.onPressIn}
               onPressOut={swipeBtnPress.onPressOut}
             >
-              {/* Placeholder grafiki — docelowo do podmiany na dedykowaną ikonę */}
-              <Ionicons name="videocam-outline" size={44} color="#FF6A4D" style={styles.swipeIconGlow} />
+              <Image source={swipeButtonImage} style={styles.swipeButtonImage} contentFit="cover" />
             </TouchableOpacity>
           </Animated.View>
           <Text style={[styles.categoryHint, styles.belowSwipeHint]}>Dotknij, by zacząć wybierać filmy</Text>
@@ -641,13 +654,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 999,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  swipeIconGlow: {
-    textShadowColor: '#FF6A4D',
-    textShadowRadius: 18,
-    textShadowOffset: { width: 0, height: 0 },
+  swipeButtonImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 999,
   },
 
   gridOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 24 },

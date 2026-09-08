@@ -36,7 +36,7 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground7.png')}
+        source={require('../assets/background/maintenace_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
@@ -118,7 +118,7 @@ export default function FriendsScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setDeleteTarget(null)}>
           <TouchableOpacity activeOpacity={1} style={styles.modalContent} onPress={() => {}}>
             <Image
-              source={require('../assets/images/moviematchbackground7.png')}
+              source={require('../assets/background/maintenace_background.png')}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />

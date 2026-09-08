@@ -23,7 +23,7 @@ function SplashLoading() {
   return (
     <View style={splashStyles.container}>
       <Image
-        source={require('../assets/images/moviematchbackground7.png')}
+        source={require('../assets/background/maintenace_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />

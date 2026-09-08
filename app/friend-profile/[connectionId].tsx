@@ -109,7 +109,7 @@ export default function FriendProfileScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/images/moviematchbackground6.png')}
+        source={require('../../assets/background/universal_background.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
