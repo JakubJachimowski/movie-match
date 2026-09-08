@@ -1,4 +1,4 @@
-{
+﻿{
   "cli": {
     "version": ">= 12.0.0",
     "appVersionSource": "local"
@@ -6,6 +6,8 @@
   "build": {
     "preview": {
       "distribution": "internal",
+      "node": "24.20.0",
+      "npm": "11.19.0",
       "android": {
         "buildType": "apk"
       }
