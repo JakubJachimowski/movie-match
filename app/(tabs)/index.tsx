@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
-import { GENRES } from '../../constants/genres';
+import { GENRE_BACKGROUNDS, GENRES } from '../../constants/genres';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useConnectionsStore } from '../../store/useConnectionsStore';
 import { useMatchesStore } from '../../store/useMatchesStore';
@@ -501,15 +501,20 @@ export default function Home() {
               onPress={() => setGridVisible(true)}
               {...panResponder.panHandlers}
             >
+              <Image
+                source={GENRE_BACKGROUNDS[currentGenre.id]}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
+              {/* Półprzeźroczysta granatowa "szyba" nad grafiką — spójna z ciemną
+                  paletą apki, żeby tło kategorii nie przebijało zbyt jaskrawo. */}
+              <View style={styles.categoryNameButtonTint} pointerEvents="none" />
               {myFavoriteGenreIds.includes(currentGenre.id) && (
                 <Ionicons name="star" size={14} color="#EAC998" style={styles.categoryStarMine} />
               )}
               {partnerFavoriteGenreIds.includes(currentGenre.id) && (
                 <Ionicons name="star-outline" size={14} color="#EAC998" style={styles.categoryStarPartner} />
               )}
-              <Text style={styles.categoryNameText} numberOfLines={1}>
-                {currentGenre.name}
-              </Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -555,13 +560,18 @@ export default function Home() {
               <View key={idx} style={styles.gridRow}>
                 {row.map((genre) => (
                   <TouchableOpacity activeOpacity={1} key={genre.id} style={styles.gridTile} onPress={() => selectGenre(genre)}>
+                    <Image
+                      source={GENRE_BACKGROUNDS[genre.id]}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                    />
+                    <View style={styles.gridTileTint} pointerEvents="none" />
                     {myFavoriteGenreIds.includes(genre.id) && (
                       <Ionicons name="star" size={14} color="#EAC998" style={styles.gridTileStarMine} />
                     )}
                     {partnerFavoriteGenreIds.includes(genre.id) && (
                       <Ionicons name="star-outline" size={14} color="#EAC998" style={styles.gridTileStarPartner} />
                     )}
-                    <Text style={styles.gridTileText}>{genre.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -642,11 +652,21 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#7C8798',
     borderRadius: 18,
+    // Wysokość ustawiona jawnie: odkąd przycisk pokazuje samą grafikę tła
+    // (bez napisu), nic już nie "rozciąga" go w pionie — bez tego zapadał
+    // się do samego paddingu. GENRE_BUTTON_HEIGHT to dokładnie tyle, ile
+    // przycisk zajmował, gdy liczyła się wysokość tekstu — czyli odrobinę
+    // więcej niż pigułki Znajomi/Match!'ed (patrz STACK_PILL_HEIGHT).
+    height: GENRE_BUTTON_HEIGHT,
     paddingVertical: CATEGORY_PADDING_V,
     paddingHorizontal: CATEGORY_PADDING_H,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  // "Szyba" nad grafiką tła — półprzeźroczysty granat (#0B0F17), efekt
+  // patrzenia na kategorię przez przyciemnione szkło.
+  categoryNameButtonTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23, 0.4)' },
   categoryNameText: { color: '#ECEEF2', fontSize: CATEGORY_FONT_SIZE, fontWeight: 'bold' },
   // Wypełniona = mój ulubiony gatunek, kontur = ulubiony znajomego — w
   // rogach przycisku, nie wpływają na wyliczoną szerokość pigułki.
@@ -685,27 +705,34 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
 
-  gridOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 24 },
+  // Mniejszy margines wokół karty i mniejszy padding w jej wnętrzu = kafelki
+  // gatunków zajmują więcej szerokości ekranu (użytkownik chciał je poszerzyć).
+  gridOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 14 },
   gridCard: {
     backgroundColor: '#141A24',
     borderRadius: 20,
     borderWidth: 0.5,
     borderColor: '#7C8798',
-    padding: 20,
+    padding: 12,
   },
   gridTitle: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
   gridRow: { flexDirection: 'row', marginBottom: 10 },
   gridTile: {
     flex: 1,
-    marginHorizontal: 5,
-    paddingVertical: 20,
+    marginHorizontal: 3,
+    // Jawna wysokość: kafelek pokazuje samą grafikę tła (bez napisu, wpisanego
+    // już w obrazek), więc bez tego zapadał się do samego paddingu i grafika
+    // była ledwo widoczna. Powiększone też względem dawnej wersji z tekstem.
+    height: 76,
     backgroundColor: '#0B0F17',
     borderWidth: 0.5,
     borderColor: '#7C8798',
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  gridTileTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23, 0.4)' },
   gridTileStarMine: { position: 'absolute', top: 6, left: 8 },
   gridTileStarPartner: { position: 'absolute', top: 6, right: 8 },
   gridTileText: { color: '#ECEEF2', fontSize: 15, fontWeight: 'bold' },

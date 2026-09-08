@@ -17,7 +17,7 @@ import {
 import { Avatar } from '../components/Avatar';
 import { AvatarPickerModal } from '../components/AvatarPickerModal';
 import { AvatarZoom } from '../components/AvatarZoom';
-import { GENRES } from '../constants/genres';
+import { GENRE_BACKGROUNDS, GENRES } from '../constants/genres';
 import { MovieSearchResult, searchMovies } from '../services/tmdb';
 import { FavoriteMovie, useAuthStore } from '../store/useAuthStore';
 import { useConnectionsStore } from '../store/useConnectionsStore';
@@ -225,10 +225,15 @@ export default function ProfileScreen() {
                       setGenreSlot(null);
                     }}
                   >
+                    <Image
+                      source={GENRE_BACKGROUNDS[g.id]}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                    />
+                    <View style={styles.genreGridTileTint} pointerEvents="none" />
                     {isFavorite && (
                       <Ionicons name="star" size={14} color="#EAC998" style={styles.genreGridTileStar} />
                     )}
-                    <Text style={styles.genreGridTileText}>{g.name}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -467,7 +472,10 @@ const styles = StyleSheet.create({
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   genreGridTile: {
     width: '48%',
-    paddingVertical: 16,
+    // Jawna wysokość: kafelek pokazuje samą grafikę tła (bez napisu, wpisanego
+    // już w obrazek), więc bez tego zapadał się do samego paddingu i grafika
+    // była ledwo widoczna. Powiększone też względem dawnej wersji z tekstem.
+    height: 76,
     marginBottom: 10,
     backgroundColor: '#0B0F17',
     borderWidth: 0.5,
@@ -475,8 +483,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  genreGridTileText: { color: '#ECEEF2', fontSize: 17, fontWeight: 'bold' },
+  // "Szyba" nad grafiką tła — półprzeźroczysty granat (#0B0F17), efekt
+  // patrzenia na kategorię przez przyciemnione szkło.
+  genreGridTileTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 15, 23, 0.4)' },
   // Gwiazdka ulubionego — w rogu kafelka, nie zajmuje miejsca w treści.
   genreGridTileStar: { position: 'absolute', top: 6, right: 8 },
 
